@@ -246,6 +246,13 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git
       - name: Release build
         run: cargo build --locked --release -p nectarlink-desktop
+      - name: Bundle NectarLink.app
+        run: ./desktop/packaging/macos/build-app.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nectarlink-macos-arm64
+          path: dist/*.zip
+          retention-days: 14
 
   desktop-linux:
     name: Linux app (x64)
