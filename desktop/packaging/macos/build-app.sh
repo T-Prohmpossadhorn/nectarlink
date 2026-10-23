@@ -28,8 +28,12 @@ command -v "$MACDEPLOYQT" >/dev/null || { echo "macdeployqt not found; set QT_RO
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/nectarlink-desktop"
-for qm in target/release/nectarlink_*.qm; do
-    [[ -f "$qm" ]] && cp "$qm" "$APP/Contents/MacOS/"
+# Translations, next to the executable where the app looks for them.
+LRELEASE="${QT_ROOT_DIR:+${QT_ROOT_DIR}/bin/}lrelease"
+command -v "$LRELEASE" >/dev/null || { echo "lrelease not found; set QT_ROOT_DIR" >&2; exit 1; }
+for ts in desktop/app/i18n/nectarlink_*.ts; do
+    name="$(basename "$ts" .ts)"
+    "$LRELEASE" -silent "$ts" -qm "$APP/Contents/MacOS/${name}.qm"
 done
 
 # The icon: every size macOS asks for, from the 512 px brand icon.
