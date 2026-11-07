@@ -69,6 +69,7 @@ These come from the plan and will grow into a full style guide:
 - **Rust is the source of truth.** Business logic lives in Rust. QML only
   describes screens, layout and animation.
 - **One bridge.** Only `desktop/app/src/bridge` (cxx-qt) connects Rust to Qt.
+  macOS-only native code follows [ADR 0009](docs/adr/0009-macos-native-code.md).
 - **Privacy first.** Never log notification text, message content, file names
   or keys. No telemetry.
 - **All user-facing strings are translatable**: `qsTr` in QML,
