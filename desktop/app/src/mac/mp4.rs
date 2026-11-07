@@ -7,11 +7,11 @@ use std::{
 };
 
 /// `"{prefix} YYYY-MM-DD HH.MM.SS.{ext}"` in local time, the same shape as on Windows.
-#[allow(unsafe_code)]
 pub fn local_timestamp_filename(prefix: &str, ext: &str) -> String {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let secs = libc::time_t::try_from(now).unwrap_or(0);
     // SAFETY: `tm` is plain data that `localtime_r` fills in; it takes no other state.
+    #[allow(unsafe_code)]
     let tm = unsafe {
         let mut tm: libc::tm = std::mem::zeroed();
         if libc::localtime_r(&secs, &mut tm).is_null() {
