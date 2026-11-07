@@ -781,6 +781,13 @@ mod tests {
     }
 
     #[test]
+    fn an_unknown_firewall_gives_no_row() {
+        let mut f = facts();
+        f.firewall = None;
+        assert!(diagnose(&f, 0).iter().all(|c| c.id != "firewall"));
+    }
+
+    #[test]
     fn profile_check_stays_quiet_when_all_networks_are_trusted() {
         let mut f = facts();
         f.networks = vec![("Home".into(), true), ("Office".into(), true)];

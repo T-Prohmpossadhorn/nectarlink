@@ -14,6 +14,7 @@ use std::{
 
 type CFTypeRef = *const c_void;
 type CFIndex = isize;
+type CFTypeID = usize;
 type Boolean = u8;
 type StoreRef = *const c_void;
 type QueueRef = *mut c_void;
@@ -48,6 +49,10 @@ unsafe extern "C" {
     fn CFArrayGetValueAtIndex(array: CFTypeRef, index: CFIndex) -> CFTypeRef;
     fn CFStringGetCString(s: CFTypeRef, buffer: *mut c_char, size: CFIndex, encoding: u32) -> Boolean;
     fn CFStringCreateWithCString(alloc: CFTypeRef, c_str: *const c_char, encoding: u32) -> CFTypeRef;
+    fn CFGetTypeID(cf: CFTypeRef) -> CFTypeID;
+    fn CFStringGetTypeID() -> CFTypeID;
+    fn CFDictionaryGetTypeID() -> CFTypeID;
+    fn CFDictionaryGetValue(dict: CFTypeRef, key: CFTypeRef) -> CFTypeRef;
     fn CFArrayCreate(
         allocator: CFTypeRef,
         values: *const CFTypeRef,
@@ -61,9 +66,10 @@ unsafe extern "C" {
     fn SCDynamicStoreCreate(
         allocator: CFTypeRef,
         name: CFTypeRef,
-        callout: Callout,
+        callout: Option<Callout>,
         context: *mut StoreContext,
     ) -> StoreRef;
+    fn SCDynamicStoreCopyValue(store: StoreRef, key: CFTypeRef) -> CFTypeRef;
     fn SCDynamicStoreSetNotificationKeys(store: StoreRef, keys: CFTypeRef, patterns: CFTypeRef) -> Boolean;
     fn SCDynamicStoreSetDispatchQueue(store: StoreRef, queue: QueueRef) -> Boolean;
 
@@ -198,6 +204,101 @@ pub fn network_interfaces() -> Vec<Interface> {
     out
 }
 
+/// An owned (Create or Copy rule) CF object, released on drop.
+struct Owned(CFTypeRef);
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            // SAFETY: the guard owns one reference and releases it once.
+            unsafe { CFRelease(self.0) };
+        }
+    }
+}
+
+/// What the dynamic store says about the primary network. Every field is
+/// `None` when the store has no value for it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Primary {
+    /// BSD name of the interface that carries the default route, such as `en0`.
+    pub interface: Option<String>,
+    /// The name the person sees in System Settings for that service, such as
+    /// `Wi-Fi`. It is the service name, never the SSID.
+    pub service_name: Option<String>,
+}
+
+/// The store key of one network service's setup, `None` for an id that is
+/// empty or could escape the key (a `/`).
+fn service_setup_key(service_id: &str) -> Option<String> {
+    (!service_id.is_empty() && !service_id.contains('/'))
+        .then(|| format!("Setup:/Network/Service/{service_id}"))
+}
+
+/// A service name as shown to people: trimmed, `None` when empty.
+fn pick_service_name(name: Option<String>) -> Option<String> {
+    name.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty())
+}
+
+/// The dictionary stored under `key`, `None` for a missing key or a value
+/// of another type.
+fn copy_dictionary(store: StoreRef, key: &str) -> Option<Owned> {
+    let key = Owned(cf_string(key)?);
+    // SAFETY: `store` and `key` are valid for the call; a non-NULL result is owned.
+    let value = Owned(unsafe { SCDynamicStoreCopyValue(store, key.0) });
+    if value.0.is_null() {
+        return None;
+    }
+    // SAFETY: `value` is a valid CF object.
+    (unsafe { CFGetTypeID(value.0) == CFDictionaryGetTypeID() }).then_some(value)
+}
+
+/// A UTF-8 copy of the string stored under `key` in `dict`.
+fn dictionary_string(dict: &Owned, key: &str) -> Option<String> {
+    let key = Owned(cf_string(key)?);
+    // SAFETY: `dict` is a CF dictionary and `key` a CF string. The value
+    // follows the Get rule: it belongs to the dictionary, is type-checked
+    // here and copied before the dictionary is released.
+    let value = unsafe { CFDictionaryGetValue(dict.0, key.0) };
+    if value.is_null() {
+        return None;
+    }
+    // SAFETY: `value` is a valid CF object.
+    if unsafe { CFGetTypeID(value) != CFStringGetTypeID() } {
+        return None;
+    }
+    cf_to_string(value)
+}
+
+/// Reads the primary interface and its service name from the dynamic store
+/// (`State:/Network/Global/IPv4`, then IPv6, then `Setup:/Network/Service/<id>`).
+/// Needs no run loop, no main thread and no permission: it never reads the
+/// SSID. `None` when the store cannot be opened.
+pub fn primary_network() -> Option<Primary> {
+    let name = Owned(cf_string("nectarlink")?);
+    // SAFETY: `name` is valid; a NULL callout and context mean no notifications.
+    let store = Owned(unsafe { SCDynamicStoreCreate(ptr::null(), name.0, None, ptr::null_mut()) });
+    if store.0.is_null() {
+        return None;
+    }
+    let mut primary = Primary::default();
+    let mut service_id = None;
+    for key in KEYS {
+        if let Some(global) = copy_dictionary(store.0, key) {
+            primary.interface = dictionary_string(&global, "PrimaryInterface");
+            service_id = dictionary_string(&global, "PrimaryService");
+            if primary.interface.is_some() || service_id.is_some() {
+                break;
+            }
+        }
+    }
+    if let Some(setup) =
+        service_id.as_deref().and_then(service_setup_key).and_then(|k| copy_dictionary(store.0, &k))
+    {
+        primary.service_name = pick_service_name(dictionary_string(&setup, "UserDefinedName"));
+    }
+    Some(primary)
+}
+
 /// A running dynamic store subscription. Stop it with [`Subscription::stop`].
 pub struct Subscription {
     store: StoreRef,
@@ -230,7 +331,7 @@ impl Subscription {
             copy_description: ptr::null(),
         };
         // SAFETY: `context` is copied by Create; `name` is valid for the call.
-        let store = unsafe { SCDynamicStoreCreate(ptr::null(), name, on_change, &raw mut context) };
+        let store = unsafe { SCDynamicStoreCreate(ptr::null(), name, Some(on_change), &raw mut context) };
         release_all(&[name]);
         if store.is_null() {
             // SAFETY: no callout can run without a store, so `boxed` is still unique.
@@ -307,6 +408,20 @@ mod tests {
     fn keys_and_patterns_are_exact() {
         assert_eq!(KEYS, ["State:/Network/Global/IPv4", "State:/Network/Global/IPv6"]);
         assert_eq!(PATTERNS, ["State:/Network/Interface/.*/(IPv4|IPv6|Link)"]);
+    }
+
+    #[test]
+    fn service_setup_key_is_exact_and_rejects_bad_ids() {
+        assert_eq!(service_setup_key("A1-B2").as_deref(), Some("Setup:/Network/Service/A1-B2"));
+        assert_eq!(service_setup_key(""), None);
+        assert_eq!(service_setup_key("a/b"), None);
+    }
+
+    #[test]
+    fn service_name_picker_trims_and_drops_empty() {
+        assert_eq!(pick_service_name(Some("  Wi-Fi ".into())).as_deref(), Some("Wi-Fi"));
+        assert_eq!(pick_service_name(Some("  ".into())), None);
+        assert_eq!(pick_service_name(None), None);
     }
 
     #[test]
