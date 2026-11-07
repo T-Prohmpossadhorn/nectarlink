@@ -149,15 +149,16 @@ pub fn compute_capabilities(
     }
     #[cfg(any(windows, target_os = "linux"))]
     let mut pc_mirror_enabled = crate::pc_mirror::is_active();
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
     let mut remote_input_enabled = false;
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
     if let Some(node) = node
         && let Ok(devices) = node.paired_devices()
     {
         for d in devices {
             if let Ok(toggles) = node.device_toggles(d.id) {
                 for (name, on) in toggles {
+                    #[cfg(any(windows, target_os = "linux"))]
                     if on && name == nectarlink_core::PC_MIRROR_TOGGLE {
                         pc_mirror_enabled = true;
                     }
@@ -174,9 +175,9 @@ pub fn compute_capabilities(
     }
     #[cfg(windows)]
     let input_available = true;
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     let input_available = crate::win::input::is_available();
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
     if remote_input_enabled && input_available {
         caps.push(nectarlink_core::MIRROR_INPUT.into());
         caps.push(nectarlink_core::INPUT_INJECT.into());
