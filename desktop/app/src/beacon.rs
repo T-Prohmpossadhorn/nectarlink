@@ -7,10 +7,6 @@
 //! so Windows, Linux and the macOS stub agree on the bytes and the tests need no
 //! radio. The code that sends and receives the frame stays in each platform.
 
-// The macOS beacon is a stub that only logs, so on a Mac nothing outside the
-// tests uses these items. Windows and Linux use all of them.
-#![cfg_attr(target_os = "macos", allow(dead_code))]
-
 use std::collections::HashMap;
 
 use nectarlink_core::DeviceId;
