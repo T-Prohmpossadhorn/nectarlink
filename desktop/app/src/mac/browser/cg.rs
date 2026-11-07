@@ -3,10 +3,13 @@
 //! the `unsafe` kept here. The window list is copied, read into plain Rust
 //! values and released inside one function. No function keeps a pointer.
 //!
-//! None of these calls asks for a permission or raises a prompt. A window's
-//! title may be left out by the system when Screen Recording is not granted.
-//! That is not proven, so a missing title is read as an empty one and
-//! nothing here checks the permission.
+//! No call here asks for a permission on purpose. We have not proven that
+//! none of them raises a prompt. For example, `CFBundleCreate` reads
+//! `Contents/Info.plist`, and it is a hardware check not yet done whether
+//! that raises a Files and Folders prompt for an app in a protected folder.
+//! A window's title may be left out by the system when Screen Recording is
+//! not granted. That is not proven either, so a missing title is read as an
+//! empty one and nothing here checks the permission.
 
 #![allow(unsafe_code)]
 
