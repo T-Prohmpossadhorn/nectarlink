@@ -44,7 +44,7 @@ Rejected: a second cxx-qt bridge, Qt Bluetooth or Qt Multimedia for macOS-only f
 - `scripts/check-headers.ps1` checks the SPDX header only for `.rs .qml .cpp .h .hpp .ps1 .sh .kt .kts`. If `.m`, `.mm` or `.swift` files appear, add them to `$extensions` in the same PR. If `.plist` or `.entitlements` files are added they cannot carry a header comment the same way: decide whether to add them to the list or exclude them.
 - `desktop/app/build.rs`: a `.mm` file would have to be added to the `cpp_files` list for the cxx-qt build. Unknown whether `cxx-qt-build` accepts `.mm` there. Draft 63 shows the `cc` route instead. Prove one before the first `.mm` PR.
 - `deny.toml`: no change for levels 1 and 2 without a crate. `objc2*`, `dispatch2` or any `objc2-core-*` crate needs a check and an ADR note (licence, version). `objc2-core-bluetooth` is not in the lock file; `objc2-core-wlan` is a separate crate that was not checked.
-- CI: a macOS job must build and run the pure tests. Framework-backed tests are marked and run on macOS CI only, never on a desktop session that raises a permission prompt.
+- CI: the existing `desktop-macos` job must run the pure tests. Framework-backed tests stay out of it. They are marked and run only on a machine where no permission prompt can reach a desktop session.
 
 ## Consequences
 
