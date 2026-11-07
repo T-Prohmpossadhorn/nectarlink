@@ -289,6 +289,44 @@ pub fn execute_tile(tile_id: &str) -> Result<(), String> {
     res
 }
 
+/// The Deck tiles that press a shortcut of the system itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SystemShortcut {
+    ShowDesktop,
+    SwitchWindow,
+    Screenshot,
+}
+
+/// The key and modifiers that do `which` on this system, or `None` when the
+/// app has no key press for it.
+#[cfg(not(target_os = "macos"))]
+fn system_shortcut(which: SystemShortcut) -> Option<(&'static str, &'static [KeyMod])> {
+    Some(match which {
+        SystemShortcut::ShowDesktop => ("d", &[KeyMod::Win]),
+        SystemShortcut::SwitchWindow => ("tab", &[KeyMod::Alt]),
+        SystemShortcut::Screenshot => ("s", &[KeyMod::Win, KeyMod::Shift]),
+    })
+}
+
+/// On a Mac, Command+Tab switches apps and Shift+Command+5 opens the screenshot
+/// tool (support.apple.com/102650). Apple lists Show Desktop only as Fn+F11 or
+/// Command+Mission Control, which a plain key code does not make.
+#[cfg(target_os = "macos")]
+fn system_shortcut(which: SystemShortcut) -> Option<(&'static str, &'static [KeyMod])> {
+    match which {
+        SystemShortcut::ShowDesktop => None,
+        SystemShortcut::SwitchWindow => Some(("tab", &[KeyMod::Win])),
+        SystemShortcut::Screenshot => Some(("5", &[KeyMod::Win, KeyMod::Shift])),
+    }
+}
+
+fn press_system_shortcut(which: SystemShortcut) -> Result<(), String> {
+    let (key, mods) =
+        system_shortcut(which).ok_or_else(|| format!("{which:?} is not available on this system yet"))?;
+    win::input::press_key(key, mods);
+    Ok(())
+}
+
 fn execute_action(action: &DeckAction) -> Result<(), String> {
     match action {
         DeckAction::MediaPlayPause => {
@@ -312,24 +350,16 @@ fn execute_action(action: &DeckAction) -> Result<(), String> {
         DeckAction::VolumeMute => win::audio::toggle_speaker_mute().map(|_| ()),
         DeckAction::MicMute => win::audio::toggle_mic_mute().map(|_| ()),
         DeckAction::LockPc => win::shell::lock(),
-        DeckAction::ShowDesktop => {
-            win::input::press_key("d", &[KeyMod::Win]);
-            Ok(())
-        }
-        DeckAction::SwitchWindow => {
-            win::input::press_key("tab", &[KeyMod::Alt]);
-            Ok(())
-        }
+        DeckAction::ShowDesktop => press_system_shortcut(SystemShortcut::ShowDesktop),
+        DeckAction::SwitchWindow => press_system_shortcut(SystemShortcut::SwitchWindow),
         DeckAction::Screenshot => {
             #[cfg(target_os = "linux")]
             {
                 let _ = win::shell::take_screenshot();
+                Ok(())
             }
             #[cfg(not(target_os = "linux"))]
-            {
-                win::input::press_key("s", &[KeyMod::Win, KeyMod::Shift]);
-            }
-            Ok(())
+            press_system_shortcut(SystemShortcut::Screenshot)
         }
         DeckAction::Shortcut { key, mods } => {
             win::input::press_key(key, mods);
@@ -614,6 +644,41 @@ pub fn save_tile(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_shortcuts_press_valid_keys() {
+        use nectarlink_core::remote_keys;
+        for which in [SystemShortcut::ShowDesktop, SystemShortcut::SwitchWindow, SystemShortcut::Screenshot] {
+            if let Some((key, mods)) = system_shortcut(which) {
+                assert!(remote_keys::is_valid(key, mods), "{which:?}");
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn windows_and_linux_keep_their_system_shortcuts() {
+        assert_eq!(system_shortcut(SystemShortcut::ShowDesktop), Some(("d", &[KeyMod::Win][..])));
+        assert_eq!(system_shortcut(SystemShortcut::SwitchWindow), Some(("tab", &[KeyMod::Alt][..])));
+        assert_eq!(
+            system_shortcut(SystemShortcut::Screenshot),
+            Some(("s", &[KeyMod::Win, KeyMod::Shift][..]))
+        );
+    }
+
+    /// Windows shortcuts reach a Mac as other keys (Command+D duplicates, Command+Shift+S saves
+    /// as), so a Mac gets its own, and a tile without one does nothing.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_mac_gets_its_own_system_shortcuts() {
+        assert_eq!(system_shortcut(SystemShortcut::ShowDesktop), None);
+        assert_eq!(system_shortcut(SystemShortcut::SwitchWindow), Some(("tab", &[KeyMod::Win][..])));
+        assert_eq!(
+            system_shortcut(SystemShortcut::Screenshot),
+            Some(("5", &[KeyMod::Win, KeyMod::Shift][..]))
+        );
+        assert!(press_system_shortcut(SystemShortcut::ShowDesktop).is_err());
+    }
 
     #[test]
     fn builds_and_validates_editor_actions() {
