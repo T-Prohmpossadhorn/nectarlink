@@ -3,8 +3,9 @@
 //! its microphone and plays it into an output device. Played into a virtual
 //! audio cable (VB-Audio's CABLE Input or Voicemeeter on Windows, BlackHole,
 //! Loopback or Soundflower on a Mac), the cable's other end is a microphone
-//! every app can pick; played to the speakers, it's for listening in. A virtual microphone of NectarLink's own needs an audio
-//! driver and is a later, separate step (GitHub #7).
+//! every app can pick; played to the speakers, it's for listening in. A
+//! virtual microphone of NectarLink's own needs an audio driver and is a
+//! later, separate step (GitHub #7).
 
 use crate::i18n::tr;
 use std::{
