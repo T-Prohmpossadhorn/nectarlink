@@ -72,6 +72,7 @@ mod win;
 #[cfg(target_os = "macos")]
 #[path = "mac/mod.rs"]
 mod win;
+mod window_match;
 
 use std::{
     path::{Path, PathBuf},

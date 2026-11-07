@@ -266,7 +266,7 @@ impl Automation {
         // SAFETY: a COM call on a live element.
         let value = unsafe { bar.GetCurrentPropertyValue(UIA_ValueValuePropertyId) }.ok()?;
         let text = BSTR::try_from(&value).ok()?.to_string();
-        with_scheme(&text)
+        crate::window_match::with_scheme(&text)
     }
 
     /// Where on screen the video plays in `window`, in physical pixels:
@@ -342,26 +342,6 @@ pub fn frame_of(hwnd: HWND) -> Option<RECT> {
     (rect.right > rect.left && rect.bottom > rect.top).then_some(rect)
 }
 
-/// An address bar's text as a web address: "youtube.com/watch?v=x" becomes
-/// "https://youtube.com/watch?v=x". Anything that isn't a web page (a
-/// search being typed, a browser's own pages) is `None`.
-fn with_scheme(text: &str) -> Option<String> {
-    let text = text.trim();
-    if text.is_empty() || text.contains(char::is_whitespace) {
-        return None;
-    }
-    let lower = text.to_ascii_lowercase();
-    if lower.starts_with("https://") || lower.starts_with("http://") {
-        return Some(text.to_owned());
-    }
-    if lower.contains("://") || lower.starts_with("about:") {
-        return None;
-    }
-    let host = lower.split(['/', '?', '#']).next().unwrap_or("");
-    let host = host.split(':').next().unwrap_or("");
-    (host.contains('.') || host == "localhost").then(|| format!("https://{text}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,24 +356,6 @@ mod tests {
         assert_eq!(programs_for("VideoLAN.VLC"), ["vlc.exe"]);
         // A packaged app's ID: no program to find a window by.
         assert!(programs_for("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify").is_empty());
-    }
-
-    #[test]
-    fn address_bar_text_becomes_a_web_address() {
-        assert_eq!(
-            with_scheme("youtube.com/watch?v=abc").as_deref(),
-            Some("https://youtube.com/watch?v=abc")
-        );
-        assert_eq!(
-            with_scheme("https://www.netflix.com/watch/1").as_deref(),
-            Some("https://www.netflix.com/watch/1")
-        );
-        assert_eq!(with_scheme("127.0.0.1:8765").as_deref(), Some("https://127.0.0.1:8765"));
-        assert_eq!(with_scheme("cats on skateboards"), None, "a search being typed");
-        assert_eq!(with_scheme("chrome://settings"), None);
-        assert_eq!(with_scheme("about:blank"), None);
-        assert_eq!(with_scheme("settings"), None);
-        assert_eq!(with_scheme(""), None);
     }
 
     fn window(title: &str) -> Window {
