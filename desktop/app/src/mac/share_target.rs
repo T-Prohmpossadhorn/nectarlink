@@ -3,9 +3,10 @@
 //! links, web links, `nectarlink://` links, or text) and the share that another
 //! launch left in `activated-share.json`.
 //!
-//! Nothing registers this as a system share target yet. Finder open events,
-//! the `nectarlink://` scheme and the share picker arrive later and use the
-//! same payload.
+//! Nothing registers this as a system share target yet. The app bundle
+//! declares the `nectarlink://` scheme in its Info.plist, but nothing handles
+//! the link yet. Finder open events and the share picker arrive later. All of
+//! them use the same payload.
 
 use std::{
     ffi::OsString,

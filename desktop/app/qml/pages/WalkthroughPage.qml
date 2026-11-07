@@ -87,11 +87,11 @@ FocusScope {
         qsTr("Find my phone")
     ]
 
+    // A Mac has no phone storage folder to share, so it does not list "Share PC folders".
     readonly property var optInLabels: [
         qsTr("Screen mirroring"),
-        qsTr("Remote input"),
-        qsTr("Share PC folders")
-    ]
+        qsTr("Remote input")
+    ].concat(Qt.platform.os === "osx" ? [] : [qsTr("Share PC folders")])
 
     readonly property var stepTitles: [
         qsTr("Welcome to NectarLink"),
@@ -1388,11 +1388,12 @@ FocusScope {
                                             }
 
                                             Repeater {
+                                                // "storage" opens the phone in File Explorer or the file manager; a Mac has neither.
                                                 model: [
                                                     { key: "pc_mirror", label: qsTr("Screen mirroring") },
                                                     { key: "remote_input", label: qsTr("Remote input") },
                                                     { key: "storage", label: qsTr("Share PC folders") }
-                                                ]
+                                                ].filter(entry => entry.key !== "storage" || Qt.platform.os !== "osx")
 
                                                 delegate: RowLayout {
                                                     required property var modelData

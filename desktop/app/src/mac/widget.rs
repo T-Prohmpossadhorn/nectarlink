@@ -4,7 +4,8 @@
 //! There is no widget on a Mac yet. A WidgetKit widget needs an extension, so
 //! nothing reads the snapshot, and `--widget-provider` exits, as it does on
 //! Windows (#85). The snapshot and the verb helpers are here so that a widget
-//! can use them when it exists. The snapshot holds the phone's name, whether
+//! can use them when it exists. Until then the app writes no snapshot at
+//! startup: [`write_state_snapshot`] does nothing. The snapshot holds the phone's name, whether
 //! it is connected and its battery. It never holds notification text,
 //! message content, clipboard text or file names.
 
@@ -17,7 +18,7 @@ use std::{
 use nectarlink_core::LinkState;
 use serde::{Deserialize, Serialize};
 
-use crate::{core_host, launch::Request, state::DeviceView, win::single_instance};
+use crate::{launch::Request, state::DeviceView, win::single_instance};
 
 pub const ARG: &str = "--widget-provider";
 
@@ -38,6 +39,8 @@ pub fn state_snapshot_path(data_dir: &Path) -> PathBuf {
 /// Writes `state` to `<data_dir>/widget-state.json`: into a temporary file
 /// that only its owner can read (mode 0600), which then replaces the old one,
 /// so a reader never sees half a file. It refuses to write over a link.
+// Used when a widget exists.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn write_snapshot_file(data_dir: &Path, state: &WidgetState) -> io::Result<()> {
     use std::{
         io::Write,
@@ -90,6 +93,8 @@ pub fn read_snapshot_file(data_dir: &Path) -> WidgetState {
 
 /// What the snapshot says about the primary phone: the first one online, or
 /// else the first one paired.
+// Used when a widget exists.
+#[allow(dead_code)]
 fn state_of(devices: &[DeviceView]) -> WidgetState {
     let online = |d: &&DeviceView| matches!(d.link, LinkState::Online { .. });
     match devices.iter().find(online).or_else(|| devices.first()) {
@@ -103,13 +108,10 @@ fn state_of(devices: &[DeviceView]) -> WidgetState {
     }
 }
 
-/// Writes the current primary phone state to `widget-state.json`.
-pub fn write_state_snapshot(data_dir: &Path) {
-    let state = core_host::host().hub.read(|s| state_of(&s.devices));
-    if let Err(e) = write_snapshot_file(data_dir, &state) {
-        tracing::debug!(error = %e, "could not write widget-state.json");
-    }
-}
+/// Does nothing: no widget reads `widget-state.json` on a Mac yet, so the app
+/// does not write the phone's name and battery to disk. When a widget exists,
+/// this writes [`state_of`] with [`write_snapshot_file`].
+pub fn write_state_snapshot(_data_dir: &Path) {}
 
 /// There is no widget to host on a Mac.
 pub fn run_provider(_data_dir: &Path) -> ExitCode {

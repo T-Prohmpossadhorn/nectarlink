@@ -2103,8 +2103,10 @@ fn save_files(target: &Path, entries: &[FileEntry], parts: Vec<PathBuf>) -> std:
 /// Marks a received file as coming from another device, the way a browser
 /// marks a download: on Windows that's the Internet zone (Mark of the Web),
 /// so SmartScreen checks a program before it runs and Office opens a
-/// document in Protected View. Best effort: a drive without alternate data
-/// streams (FAT32, say) takes no mark.
+/// document in Protected View. On a Mac it is the quarantine mark, so
+/// Gatekeeper asks before a program or script from here runs. Best effort: a
+/// drive without alternate data streams (FAT32, say) or extended attributes
+/// takes no mark.
 pub(crate) fn mark_from_elsewhere(path: &Path) {
     #[cfg(windows)]
     {
@@ -2114,8 +2116,44 @@ pub(crate) fn mark_from_elsewhere(path: &Path) {
             tracing::debug!(error = %e, "can't mark a received file as from elsewhere");
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    if let Err(e) = quarantine(path) {
+        tracing::debug!(error = %e, "can't mark a received file as from elsewhere");
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     let _ = path;
+}
+
+/// The value of the `com.apple.quarantine` attribute that a browser writes:
+/// flags, the time in hex seconds, and the name of the app that saved it.
+#[cfg(target_os = "macos")]
+fn quarantine_value(unix_seconds: u64) -> String {
+    format!("0081;{unix_seconds:x};NectarLink;")
+}
+
+/// Sets `com.apple.quarantine` on `path` (not on what a link points to).
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code)]
+fn quarantine(path: &Path) -> std::io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt, time::SystemTime};
+
+    let seconds =
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_secs());
+    let value = quarantine_value(seconds);
+    let path = CString::new(path.as_os_str().as_bytes())?;
+    // SAFETY: `path` and the attribute name are NUL-terminated and `value`
+    // is a live buffer of the length passed with it.
+    let rc = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            c"com.apple.quarantine".as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+            libc::XATTR_NOFOLLOW,
+        )
+    };
+    if rc == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
 
 /// Room kept free beyond an incoming transfer's size.
@@ -2247,6 +2285,41 @@ mod tests {
         let mut stream = file.into_os_string();
         stream.push(":Zone.Identifier");
         assert_eq!(std::fs::read_to_string(stream).unwrap(), "[ZoneTransfer]\r\nZoneId=3\r\n");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[allow(unsafe_code)]
+    #[test]
+    fn received_files_are_quarantined_on_a_mac() {
+        use std::{ffi::CString, os::unix::ffi::OsStrExt};
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("run.command");
+        std::fs::write(&file, b"#!/bin/sh\n").unwrap();
+        mark_from_elsewhere(&file);
+
+        let path = CString::new(file.as_os_str().as_bytes()).unwrap();
+        let mut buf = [0u8; 128];
+        // SAFETY: NUL-terminated names and a live buffer of the length passed.
+        let len = unsafe {
+            libc::getxattr(
+                path.as_ptr(),
+                c"com.apple.quarantine".as_ptr(),
+                buf.as_mut_ptr().cast(),
+                buf.len(),
+                0,
+                libc::XATTR_NOFOLLOW,
+            )
+        };
+        assert!(len > 0, "the file carries the mark");
+        let value = std::str::from_utf8(&buf[..len as usize]).unwrap();
+        assert!(value.starts_with("0081;") && value.ends_with(";NectarLink;"), "{value}");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn quarantine_value_has_flags_hex_time_and_agent() {
+        assert_eq!(quarantine_value(255), "0081;ff;NectarLink;");
     }
 
     #[test]

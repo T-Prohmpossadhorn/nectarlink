@@ -733,17 +733,20 @@ fn build_candidates() -> Vec<PaletteCandidate> {
             keywords: format!("hand off handoff document file open pdf doc txt send {dev_name}"),
             base_boost: 77,
         });
-        out.push(PaletteCandidate {
-            id: format!("action:phone_storage:{dev_id}"),
-            title: tr!("CommandPalette", "Browse phone storage in File Explorer"),
-            subtitle: tr!("CommandPalette", "Open %1's Cloud Files folder in Explorer", dev_name),
-            category: "Actions".into(),
-            icon: "folder".into(),
-            badge: dev_name.clone(),
-            shortcut: String::new(),
-            keywords: format!("browse phone storage files explorer folder drive {dev_name}"),
-            base_boost: 74,
-        });
+        // A Mac has no phone storage folder, so it does not offer this.
+        if !cfg!(target_os = "macos") {
+            out.push(PaletteCandidate {
+                id: format!("action:phone_storage:{dev_id}"),
+                title: tr!("CommandPalette", "Browse phone storage in File Explorer"),
+                subtitle: tr!("CommandPalette", "Open %1's Cloud Files folder in Explorer", dev_name),
+                category: "Actions".into(),
+                icon: "folder".into(),
+                badge: dev_name.clone(),
+                shortcut: String::new(),
+                keywords: format!("browse phone storage files explorer folder drive {dev_name}"),
+                base_boost: 74,
+            });
+        }
     }
 
     // Additional per-phone actions when multiple phones are paired
