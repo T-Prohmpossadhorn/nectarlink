@@ -10,6 +10,7 @@
 
 mod automations;
 mod battery;
+mod beacon;
 mod bridge;
 mod calls;
 mod clipboard;
