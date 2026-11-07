@@ -294,6 +294,8 @@ pub fn execute_tile(tile_id: &str) -> Result<(), String> {
 enum SystemShortcut {
     ShowDesktop,
     SwitchWindow,
+    // Linux takes its screenshots through `win::shell::take_screenshot` instead.
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     Screenshot,
 }
 
