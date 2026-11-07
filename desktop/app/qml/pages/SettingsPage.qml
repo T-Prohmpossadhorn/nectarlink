@@ -1691,11 +1691,16 @@ Item {
                         Item {
                             id: audioCallsPairRow
                             width: parent.width
-                            readonly property bool splitCols: width >= 460
+                            // Pausing PC media for a call is not available on a Mac, so
+                            // the first row then fills the whole width.
+                            readonly property bool pauseShown: Qt.platform.os !== "osx"
+                            readonly property bool splitCols: pauseShown && width >= 460
                             readonly property real colWidth: splitCols ? Math.floor((width - 37) / 2) : width
-                            implicitHeight: splitCols
-                                ? Math.max(streamAudioRow.implicitHeight, pauseOnCallRow.implicitHeight)
-                                : (streamAudioRow.implicitHeight + 1 + pauseOnCallRow.implicitHeight)
+                            implicitHeight: !pauseShown
+                                ? streamAudioRow.implicitHeight
+                                : splitCols
+                                    ? Math.max(streamAudioRow.implicitHeight, pauseOnCallRow.implicitHeight)
+                                    : (streamAudioRow.implicitHeight + 1 + pauseOnCallRow.implicitHeight)
 
                             ListRow {
                                 id: streamAudioRow
@@ -1722,13 +1727,14 @@ Item {
                             }
 
                             Divider {
-                                visible: !audioCallsPairRow.splitCols
+                                visible: audioCallsPairRow.pauseShown && !audioCallsPairRow.splitCols
                                 y: streamAudioRow.implicitHeight
                                 width: parent.width
                             }
 
                             ListRow {
                                 id: pauseOnCallRow
+                                visible: audioCallsPairRow.pauseShown
                                 x: audioCallsPairRow.splitCols ? (parent.width - width) : 0
                                 y: audioCallsPairRow.splitCols
                                     ? Math.round((parent.height - height) / 2)
@@ -2814,6 +2820,7 @@ Item {
                                     onClicked: Preferences.addAutomationRule("phone_disconnected", "lock_pc", "")
                                 }
                                 Button {
+                                    visible: Qt.platform.os !== "osx"
                                     variant: "tonal"
                                     size: "sm"
                                     iconPath: Icons.plus

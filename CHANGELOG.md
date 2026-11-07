@@ -85,6 +85,10 @@ change things that need a step from you, and its notes say so.
 
 ### Fixed
 
+- **The Mac no longer pretends to do things it cannot do.** The Play on phone switch
+  on Home now shows as off, not on. The Deck play tile no longer shows a made-up
+  playing state. Settings no longer offers "Pause media during calls" or the "Pause
+  media on ring" rule, because the Mac cannot pause other apps yet.
 - **"Quiet while this PC is locked" now works on macOS.** The switch was there,
   but the app never found out whether the screen was locked, so pop-ups kept
   coming while the Mac was locked. Thanks to

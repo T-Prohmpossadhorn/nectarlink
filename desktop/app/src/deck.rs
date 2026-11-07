@@ -329,11 +329,18 @@ fn press_system_shortcut(which: SystemShortcut) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether a play/pause press should flip the shown playing state because no
+/// media session can report it. On a Mac there are never sessions, so the state
+/// is never guessed: the tile would claim a state nothing confirmed.
+fn guesses_playing_state(has_session: bool) -> bool {
+    !has_session && !cfg!(target_os = "macos")
+}
+
 fn execute_action(action: &DeckAction) -> Result<(), String> {
     match action {
         DeckAction::MediaPlayPause => {
             win::input::press_key("play_pause", &[]);
-            if !HAS_MEDIA_SESSION.load(Ordering::Relaxed) {
+            if guesses_playing_state(HAS_MEDIA_SESSION.load(Ordering::Relaxed)) {
                 let prev = MEDIA_PLAYING.load(Ordering::Relaxed);
                 MEDIA_PLAYING.store(!prev, Ordering::Relaxed);
             }
@@ -646,6 +653,12 @@ pub fn save_tile(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mac_never_guesses_the_playing_state() {
+        assert!(!guesses_playing_state(true));
+        assert_eq!(guesses_playing_state(false), !cfg!(target_os = "macos"));
+    }
 
     #[test]
     fn system_shortcuts_press_valid_keys() {

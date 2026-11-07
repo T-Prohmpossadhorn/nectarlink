@@ -391,7 +391,7 @@ mod imp {
     }
 
     pub fn state() -> &'static str {
-        "idle"
+        "off"
     }
 
     pub fn set_on(_on: bool) {}
@@ -413,6 +413,15 @@ mod imp {
         pub fn place(&self) -> Option<Place> {
             None
         }
+    }
+}
+
+#[cfg(all(test, not(any(windows, target_os = "linux"))))]
+mod stub_tests {
+    #[test]
+    fn the_stub_is_off_and_not_watchable() {
+        assert_eq!(super::state(), "off");
+        assert!(super::watchable().is_none());
     }
 }
 

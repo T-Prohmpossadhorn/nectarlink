@@ -1086,7 +1086,8 @@ pub fn connect_pc_audio(device: Option<DeviceId>) {
         });
 }
 
-/// Opens Windows Bluetooth & devices settings (`ms-settings:bluetooth`).
+/// Opens the system Bluetooth settings (`ms-settings:bluetooth` on Windows, the
+/// Bluetooth pane of System Settings on macOS).
 pub fn open_bluetooth_settings() {
     bt_hfp::open_bluetooth_settings();
 }
