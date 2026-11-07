@@ -25,6 +25,16 @@ The Linux app is new in 0.1.5 and does what the Windows app does, with these dif
 - **Your device key isn't encrypted on disk.** On Windows and Android the system seals it. On Linux, `identity.key`, clipboard history and the send queue are protected only by file permissions, so use full-disk encryption if someone could read your disk. See [Privacy and Security](privacy-and-security.md#1-device-identity-keys).
 - **Some features need a package or a permission first**, such as `v4l2loopback` for the phone as webcam and FUSE for phone storage. The one-command install sets these up, and the **Connection Doctor** says what's missing.
 
+## On macOS
+
+The macOS app is a preview. These notes cover control of the Mac from a phone:
+
+- **Remote input needs the Accessibility switch.** When you turn on **Remote mouse, keyboard & Deck** for a phone, macOS asks you to allow NectarLink under System Settings › Privacy & Security › Accessibility. Until you allow it, the Mac does not offer input to the phone. macOS tracks this switch by the app's code signature, and Apple advises a stable signing identity, so an app that you build yourself and sign ad hoc can ask again after you rebuild it.
+- **Shortcuts use Command and Option.** The phone's `Win` key is Command and its `Alt` key is Option. The Copy, Paste, Cut, Undo, Redo and Select all buttons send the Command shortcut. A phone's `Ctrl` key sends Control.
+- **Volume and media keys are not there yet.** Deck's play, next and previous tiles do nothing on the Mac.
+- **Some Deck tiles use the Mac's own shortcuts.** Switch window sends Command+Tab and Screenshot sends Shift+Command+5, which opens the screenshot tool. Show desktop does nothing yet, because the Mac has no plain key for it.
+- **Presentation buttons send the keys that the Windows app sends.** Start show sends `F5`, which does not start the show in every Mac presentation app.
+
 ## Detailed Notes on Key Platform Boundaries
 
 ### 1. Bluetooth Hands-Free Profile (HFP) Call Audio on Windows 11

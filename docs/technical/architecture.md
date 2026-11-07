@@ -94,7 +94,7 @@ The desktop client for Windows and Linux, combining a Rust service host with a Q
 - **Shared Desktop Modules (`desktop/app/src/`)**:
   - `mirror.rs`: Phone screen mirroring and app windows, with hardware video decoding.
   - `pc_audio_stream.rs`, `phone_sound.rs` and `phone_mic.rs`: PC sound to the phone, the phone's sound on the PC, and the phone as a microphone.
-  - `pc_mirror.rs` and `remote.rs`: Sharing the PC's screen with a phone (DXGI Desktop Duplication on Windows, the screen capture portal or X11 on Linux), and input from a phone (`SendInput` on Windows; `/dev/uinput`, the portal or XTest on Linux).
+  - `pc_mirror.rs` and `remote.rs`: Sharing the PC's screen with a phone (DXGI Desktop Duplication on Windows, the screen capture portal or X11 on Linux), and input from a phone (`SendInput` on Windows; `/dev/uinput`, the portal or XTest on Linux; CoreGraphics events on macOS, behind the Accessibility permission).
   - `media.rs`, `win/smtc.rs` and `win/media_sessions.rs`: Now Playing metadata and transport controls, in both directions (SMTC on Windows, MPRIS on Linux).
   - `win/ble_beacon.rs`: Bluetooth LE beacon for waking the phone's connection.
   - `local_api.rs`: Opt-in localhost HTTP/SSE server (`127.0.0.1:53320`) for CLI, PowerToys, Raycast, and Stream Deck integrations.
