@@ -1779,7 +1779,11 @@ Item {
                                     ? qsTr("Tap Start on %1.").arg(PhoneMic.deviceName)
                                     : PhoneMic.cable
                                         ? qsTr("Plays into %1, so apps can pick its other end as a microphone.").arg(PhoneMic.outputName)
-                                        : qsTr("Plays into %1. To use it as a microphone in other apps, install a virtual audio cable such as VB-CABLE.").arg(PhoneMic.outputName)
+                                        : Qt.platform.os === "windows"
+                                            ? qsTr("Plays into %1. To use it as a microphone in other apps, install a virtual audio cable such as VB-CABLE.").arg(PhoneMic.outputName)
+                                            : Qt.platform.os === "osx"
+                                                ? qsTr("Plays into %1. To use it as a microphone in other apps, install a virtual audio cable such as BlackHole.").arg(PhoneMic.outputName)
+                                                : qsTr("Plays into %1. To use it as a microphone in other apps, install a virtual audio cable.").arg(PhoneMic.outputName)
                             Row {
                                 spacing: 8
                                 Button {

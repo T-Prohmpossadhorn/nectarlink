@@ -35,6 +35,11 @@ change things that need a step from you, and its notes say so.
   NectarLink has no virtual microphone of its own on a
   Mac. Phone sound in a mirror window and PC sound on the phone do not work on a Mac yet.
   The Deck now lists the real outputs of the Mac.
+- **A Mac picks a virtual audio cable for your phone's microphone.** When you have not
+  chosen an output, NectarLink now plays the microphone into a cable named BlackHole,
+  Loopback Audio or Soundflower if one is there. The microphone setting names BlackHole as
+  an example on a Mac. On Linux, it no longer names VB-CABLE. This is not tested on a Mac
+  with sound yet.
 - **More ways to sync a folder.** A synced folder can now go one way from the PC to the
   phone. Phone to PC can also remove from the PC what you delete on the phone: only
   files it synced and that haven't changed on the PC, and they go to the Recycle Bin. Both

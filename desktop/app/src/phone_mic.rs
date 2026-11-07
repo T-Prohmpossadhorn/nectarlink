@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Phone as microphone (docs/protocol/mic.md), on this PC: asks a phone for
 //! its microphone and plays it into an output device. Played into a virtual
-//! audio cable (VB-Audio's CABLE Input, Voicemeeter), the cable's other end
-//! is a microphone every app can pick; played to the speakers, it's for
-//! listening in. A virtual microphone of NectarLink's own needs an audio
+//! audio cable (VB-Audio's CABLE Input or Voicemeeter on Windows, BlackHole,
+//! Loopback or Soundflower on a Mac), the cable's other end is a microphone
+//! every app can pick; played to the speakers, it's for listening in. A virtual microphone of NectarLink's own needs an audio
 //! driver and is a later, separate step (GitHub #7).
 
 use crate::i18n::tr;
@@ -127,9 +127,26 @@ pub fn chosen_output() -> Option<String> {
     OUTPUT.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-/// Names that virtual audio cables give their playback end.
-const CABLES: &[&str] =
-    &["cable input", "vb-audio", "voicemeeter input", "virtual cable", "virtual microphone"];
+/// Names that virtual audio cables give their playback end, in lower case
+/// (a name is lowered before it is compared). One list serves every system,
+/// so a name from another system is matched too. The transport type of a Mac
+/// output is not a second signal here, because the apps that add their own
+/// virtual outputs (a call app's audio device, for one) may report it too
+/// and must not be chosen over the speakers.
+const CABLES: &[&str] = &[
+    // VB-Audio and Voicemeeter (Windows names; the names of VB-CABLE for a
+    // Mac are not confirmed).
+    "cable input",
+    "vb-audio",
+    "voicemeeter input",
+    // Generic names.
+    "virtual cable",
+    "virtual microphone",
+    // macOS: BlackHole (any channel count), Rogue Amoeba Loopback, Soundflower.
+    "blackhole",
+    "loopback audio",
+    "soundflower",
+];
 
 #[cfg(target_os = "linux")]
 pub const VIRTUAL_MIC_ID: &str = "nectarlink:virtual_mic";
@@ -435,6 +452,68 @@ mod tests {
         // Another phone stopping changes nothing here.
         assert_eq!(after(Phase::Asking(phone), &mic(other, false)), Phase::Asking(phone));
         assert_eq!(after(Phase::Live(phone), &NodeEvent::DeviceRemoved(phone)), Phase::Off);
+    }
+
+    #[test]
+    fn mac_virtual_cables_are_found_whatever_the_case() {
+        for name in [
+            "BlackHole 2ch",
+            "BlackHole 16ch",
+            "BlackHole 64ch",
+            "blackhole 2ch",
+            "Loopback Audio",
+            "LOOPBACK AUDIO",
+            "Soundflower (2ch)",
+            "Soundflower (64ch)",
+        ] {
+            assert!(is_cable(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn mac_outputs_that_are_not_cables_are_not_taken_for_one() {
+        for name in [
+            "MacBook Pro Speakers",
+            "Mac mini Speakers",
+            "External Headphones",
+            "AirPods Pro",
+            "Display Audio",
+            "USB Headset",
+            "Studio Display Speakers",
+            "Multi-Output Device",
+            "",
+        ] {
+            assert!(!is_cable(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_mac_cable_is_chosen_over_the_speakers_until_an_output_is_chosen() {
+        let devices = [
+            device("BuiltInSpeakerDevice", "MacBook Pro Speakers", true),
+            device("usb", "USB Headset", false),
+            device("BlackHole2ch_UID", "BlackHole 2ch", false),
+        ];
+        assert_eq!(preferred(&devices, None).as_deref(), Some("BlackHole2ch_UID"));
+        assert_eq!(preferred(&devices, Some("usb")).as_deref(), Some("usb"));
+        assert_eq!(
+            preferred(&devices, Some("BuiltInSpeakerDevice")).as_deref(),
+            Some("BuiltInSpeakerDevice")
+        );
+        // The chosen output is gone: back to the cable, not the speakers.
+        assert_eq!(preferred(&devices, Some("unplugged")).as_deref(), Some("BlackHole2ch_UID"));
+        // Without a cable the default output plays (`None` means that here).
+        assert_eq!(preferred(&devices[..2], None), None);
+    }
+
+    #[test]
+    fn the_first_cable_in_the_list_wins() {
+        let devices = [
+            device("spk", "Speakers", true),
+            device("lb", "Loopback Audio", false),
+            device("bh", "BlackHole 2ch", false),
+        ];
+        assert_eq!(preferred(&devices, None).as_deref(), Some("lb"));
     }
 
     #[test]
