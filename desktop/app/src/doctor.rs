@@ -60,9 +60,10 @@ pub struct Facts {
     /// Optional helper tools missing from `PATH` on Linux.
     #[cfg(target_os = "linux")]
     pub missing_tools: Vec<&'static str>,
-    /// Linux-specific system readiness checks: `(id, title, ok, detail, fix)`.
-    #[cfg(target_os = "linux")]
-    pub linux_checks: Vec<(String, String, bool, String, Option<&'static str>)>,
+    /// System readiness checks for this platform (Linux and macOS):
+    /// `(id, title, ok, detail, fix)`.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    pub platform_checks: Vec<(String, String, bool, String, Option<&'static str>)>,
 }
 
 /// Asks the OS and the core (blocking; call on a worker thread).
@@ -98,8 +99,8 @@ pub fn gather() -> Facts {
         devices,
         #[cfg(target_os = "linux")]
         missing_tools: windows_checks::missing_tools(),
-        #[cfg(target_os = "linux")]
-        linux_checks: windows_checks::linux_checks(),
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        platform_checks: windows_checks::platform_checks(),
     }
 }
 
@@ -200,6 +201,13 @@ pub fn oem_battery_guide(model: Option<&str>, name: &str) -> Option<(&'static st
     model.and_then(match_oem).or_else(|| match_oem(name))
 }
 
+/// The button on a firewall problem. Windows and Linux can add the rule
+/// from here. The macOS firewall is changed by the person in System
+/// Settings, so the button there only opens it.
+fn firewall_fix() -> Option<&'static str> {
+    if cfg!(target_os = "macos") { Some("firewall-settings") } else { Some("firewall") }
+}
+
 /// The findings, most important first.
 pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
     let mut checks = Vec::new();
@@ -229,7 +237,13 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
             "On public networks the firewall keeps other devices from finding this PC. If it's your home or work \
              network, open network settings and set its firewall zone to Home or Trusted."
         );
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
+        let profile_detail = tr!(
+            "Doctor",
+            "Some networks keep other devices from finding this Mac. If it's your home or work \
+             network, open network settings to check it."
+        );
+        #[cfg(windows)]
         let profile_detail = tr!(
             "Doctor",
             "On public networks Windows keeps other devices from finding this PC. If it's your home or work \
@@ -250,7 +264,9 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
         Some(f) if !f.on => {
             #[cfg(target_os = "linux")]
             let title = tr!("Doctor", "The firewall is off for this network");
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "macos")]
+            let title = tr!("Doctor", "The macOS firewall is off");
+            #[cfg(windows)]
             let title = tr!("Doctor", "Windows Firewall is off for this network");
             checks.push(check("firewall", Outcome::Ok, title, "", None));
         }
@@ -263,7 +279,16 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
                     "A firewall rule blocks incoming NectarLink connections. Allow it, and your phone can connect."
                 ),
             );
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "macos")]
+            let (title, detail) = (
+                tr!("Doctor", "The macOS firewall blocks NectarLink"),
+                tr!(
+                    "Doctor",
+                    "Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can \
+                     connect."
+                ),
+            );
+            #[cfg(windows)]
             let (title, detail) = (
                 tr!("Doctor", "Windows Firewall blocks NectarLink"),
                 tr!(
@@ -271,25 +296,28 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
                     "Someone chose not to allow it when Windows asked. Allow it, and your phone can connect."
                 ),
             );
-            checks.push(check("firewall", Outcome::Fail, title, detail, Some("firewall")));
+            checks.push(check("firewall", Outcome::Fail, title, detail, firewall_fix()));
         }
         Some(f) if !f.allowed => {
             #[cfg(target_os = "linux")]
             let title = tr!("Doctor", "NectarLink isn't allowed through the firewall");
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "macos")]
+            let (title, detail) = (
+                tr!("Doctor", "NectarLink isn't allowed through the macOS firewall"),
+                tr!("Doctor", "Your phone may not be able to connect. Open Firewall settings and allow it."),
+            );
+            #[cfg(not(target_os = "macos"))]
+            let detail = tr!("Doctor", "Your phone may not be able to connect. Allow it once here.");
+            #[cfg(windows)]
             let title = tr!("Doctor", "NectarLink isn't allowed through Windows Firewall");
-            checks.push(check(
-                "firewall",
-                Outcome::Warn,
-                title,
-                tr!("Doctor", "Your phone may not be able to connect. Allow it once here."),
-                Some("firewall"),
-            ));
+            checks.push(check("firewall", Outcome::Warn, title, detail, firewall_fix()));
         }
         Some(_) => {
             #[cfg(target_os = "linux")]
             let title = tr!("Doctor", "The firewall lets your phone connect");
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "macos")]
+            let title = tr!("Doctor", "The macOS firewall lets your phone connect");
+            #[cfg(windows)]
             let title = tr!("Doctor", "Windows Firewall lets your phone connect");
             checks.push(check("firewall", Outcome::Ok, title, "", None));
         }
@@ -310,7 +338,7 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
     if !facts.missing_tools.is_empty() {
         let list = facts.missing_tools.join(", ");
         checks.push(check(
-            "linux-tools",
+            "platform-tools",
             Outcome::Warn,
             format!("Optional helper tools not found: {list}"),
             format!(
@@ -320,8 +348,8 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
         ));
     }
 
-    #[cfg(target_os = "linux")]
-    for (id, title, ok, detail, fix) in &facts.linux_checks {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    for (id, title, ok, detail, fix) in &facts.platform_checks {
         checks.push(check(
             id,
             if *ok { Outcome::Ok } else { Outcome::Warn },
@@ -492,7 +520,9 @@ pub fn fix(id: &str) -> bool {
         "firewall-settings" => windows_checks::open_firewall_settings(),
         #[cfg(target_os = "linux")]
         "network-settings" => windows_checks::open_network_settings(),
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
+        "network-settings" => open_network_settings_with(|url| crate::win::shell::open_url(url).is_ok()),
+        #[cfg(windows)]
         "network-settings" => crate::win::shell::open_url("ms-settings:network-status").is_ok(),
         "reconnect" => {
             if let Some(node) = core_host::node() {
@@ -502,6 +532,17 @@ pub fn fix(id: &str) -> bool {
         }
         _ => false,
     }
+}
+
+/// Where System Settings shows the network pane.
+#[cfg(target_os = "macos")]
+const MAC_NETWORK_SETTINGS: &str = "x-apple.systempreferences:com.apple.Network-Settings.extension";
+
+/// Opens the network pane with the given opener, so a test can pass one
+/// that starts no process.
+#[cfg(target_os = "macos")]
+fn open_network_settings_with(open: impl FnOnce(&str) -> bool) -> bool {
+    open(MAC_NETWORK_SETTINGS)
 }
 
 #[cfg(test)]
@@ -529,8 +570,8 @@ mod tests {
             devices: vec![device_fact("Pixel", LinkState::Online { path: ConnectionPath::Lan, rtt_ms: 4 })],
             #[cfg(target_os = "linux")]
             missing_tools: Vec::new(),
-            #[cfg(target_os = "linux")]
-            linux_checks: Vec::new(),
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            platform_checks: Vec::new(),
         }
     }
 
@@ -564,7 +605,7 @@ mod tests {
                 ("network", Outcome::Ok)
             ]
         );
-        assert_eq!(checks[0].fix, Some("firewall"));
+        assert_eq!(checks[0].fix, firewall_fix());
         assert_eq!(checks[1].fix, Some("network-settings"));
         assert!(checks[3].detail.starts_with("Last seen 3 hours ago."), "{}", checks[3].detail);
         assert_eq!(checks[3].fix, Some("reconnect"));
@@ -662,7 +703,7 @@ mod tests {
         let checks = diagnose(&f, 0);
         assert_eq!(checks[0].title, "This PC isn't on a network");
         assert_eq!(checks[1].outcome, Outcome::Warn);
-        assert_eq!(checks[1].fix, Some("firewall"));
+        assert_eq!(checks[1].fix, firewall_fix());
     }
 
     #[test]
@@ -687,20 +728,94 @@ mod tests {
         assert_eq!(ago(3 * 86400), "3 days ago");
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_firewall_wording_names_macos_and_never_windows() {
+        for (on, allowed, blocked) in
+            [(false, false, false), (true, false, false), (true, true, true), (true, true, false)]
+        {
+            let mut f = facts();
+            f.firewall = Some(windows_checks::Firewall { on, allowed, blocked });
+            for c in diagnose(&f, 0) {
+                assert!(!c.title.contains("Windows") && !c.detail.contains("Windows"), "{c:?}");
+                assert!(!c.title.contains("for this network"), "{c:?}");
+            }
+        }
+        let mut f = facts();
+        f.firewall = Some(windows_checks::Firewall { on: true, allowed: false, blocked: false });
+        let checks = diagnose(&f, 0);
+        let fw = checks.iter().find(|c| c.id == "firewall").unwrap();
+        assert_eq!(fw.title, "NectarLink isn't allowed through the macOS firewall");
+        assert_eq!(fw.fix, Some("firewall-settings"));
+        f.firewall = Some(windows_checks::Firewall { on: false, allowed: false, blocked: false });
+        let checks = diagnose(&f, 0);
+        let fw = checks.iter().find(|c| c.id == "firewall").unwrap();
+        assert_eq!(fw.title, "The macOS firewall is off");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_firewall_wording_is_kept() {
+        let mut f = facts();
+        f.firewall = Some(windows_checks::Firewall { on: true, allowed: false, blocked: false });
+        let checks = diagnose(&f, 0);
+        let fw = checks.iter().find(|c| c.id == "firewall").unwrap();
+        assert_eq!(fw.title, "NectarLink isn't allowed through Windows Firewall");
+        assert_eq!(fw.fix, Some("firewall"));
+        f.firewall = Some(windows_checks::Firewall { on: false, allowed: false, blocked: false });
+        let checks = diagnose(&f, 0);
+        let fw = checks.iter().find(|c| c.id == "firewall").unwrap();
+        assert_eq!(fw.title, "Windows Firewall is off for this network");
+    }
+
+    #[test]
+    fn profile_check_stays_quiet_when_all_networks_are_trusted() {
+        let mut f = facts();
+        f.networks = vec![("Home".into(), true), ("Office".into(), true)];
+        assert!(diagnose(&f, 0).iter().all(|c| c.id != "profile"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_network_settings_fix_uses_the_given_opener() {
+        let mut seen = String::new();
+        assert!(open_network_settings_with(|url| {
+            seen = url.to_owned();
+            true
+        }));
+        assert!(seen.starts_with("x-apple.systempreferences:"));
+        assert!(!open_network_settings_with(|_| false));
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn platform_rows_do_not_break_the_connection_verdict() {
+        let mut f = facts();
+        f.platform_checks =
+            vec![("platform-demo".into(), "Needs setup".into(), false, "Do this".into(), None)];
+        let checks = diagnose(&f, 0);
+        let row = checks.iter().find(|c| c.id == "platform-demo").unwrap();
+        assert_eq!(row.outcome, Outcome::Warn);
+        // The sheet treats "platform-" rows as setup, not as a connection fault.
+        let connection_well =
+            checks.iter().all(|c| c.outcome == Outcome::Ok || c.id.starts_with("platform-"));
+        assert!(connection_well);
+    }
+
     #[cfg(target_os = "linux")]
     #[test]
     fn includes_linux_readiness_checks_and_platform_titles() {
         let mut f = facts();
-        f.linux_checks = vec![
+        f.platform_checks = vec![
             (
-                "linux-appindicator".into(),
+                "platform-appindicator".into(),
                 "GNOME system tray extension not detected".into(),
                 false,
                 "Install gnome-shell-extension-appindicator".into(),
                 None,
             ),
             (
-                "linux-fuse".into(),
+                "platform-fuse".into(),
                 "Phone storage can open in your file manager".into(),
                 true,
                 String::new(),
@@ -710,9 +825,9 @@ mod tests {
         let checks = diagnose(&f, 0);
         let fw = checks.iter().find(|c| c.id == "firewall").expect("firewall check");
         assert_eq!(fw.title, "The firewall lets your phone connect");
-        let appind = checks.iter().find(|c| c.id == "linux-appindicator").expect("appindicator check");
+        let appind = checks.iter().find(|c| c.id == "platform-appindicator").expect("appindicator check");
         assert_eq!(appind.outcome, Outcome::Warn);
-        let fuse = checks.iter().find(|c| c.id == "linux-fuse").expect("fuse check");
+        let fuse = checks.iter().find(|c| c.id == "platform-fuse").expect("fuse check");
         assert_eq!(fuse.outcome, Outcome::Ok);
     }
 }

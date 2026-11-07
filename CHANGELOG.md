@@ -20,6 +20,8 @@ change things that need a step from you, and its notes say so.
   try to wake it. Settings › Connection & About shows whether Wake for network access is
   on. Waking a Mac over Wi-Fi may not work. The Features guide now shows the same text as
   Settings when the wake state is unknown or no adapter is found, on every system.
+- **Less Windows wording in the Connection Doctor.** The Walkthrough summary and the Features
+  guide no longer name Windows Firewall on a Mac or on Linux.
 - **More ways to sync a folder.** A synced folder can now go one way from the PC to the
   phone. Phone to PC can also remove from the PC what you delete on the phone: only
   files it synced and that haven't changed on the PC, and they go to the Recycle Bin. Both

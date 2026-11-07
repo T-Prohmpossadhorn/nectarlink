@@ -10,15 +10,16 @@ Sheet {
 
     readonly property var checks: { try { return JSON.parse(AppController.doctorChecks) } catch (e) { return [] } }
     readonly property bool allWell: checks.length > 0 && checks.every(c => c.outcome === "ok")
-    // Checks for features that need setup (ids "linux-..."), as opposed to
+    // Checks for features that need setup (ids "platform-..."), as opposed to
     // what stands between the phone and this PC.
     readonly property bool connectionWell: checks.length > 0
-        && checks.every(c => c.outcome === "ok" || c.id.startsWith("linux-"))
+        && checks.every(c => c.outcome === "ok" || c.id.startsWith("platform-"))
 
     function fixLabel(fix) {
         switch (fix) {
         case "firewall": return qsTr("Allow")
         case "network-settings": return qsTr("Open settings")
+        case "firewall-settings": return qsTr("Firewall settings")
         case "reconnect": return qsTr("Reconnect")
         default: return ""
         }

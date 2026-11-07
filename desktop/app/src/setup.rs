@@ -194,10 +194,14 @@ impl Step {
         match self {
             Step::Closing => "Closing NectarLink",
             Step::Files => "Copying files",
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(windows)]
             Step::Firewall => "Allowing through Windows Firewall",
             #[cfg(target_os = "linux")]
             Step::Firewall => "Configure Linux firewall rules",
+            // The macOS installer never adds a firewall rule, so this step
+            // never runs there. The words stay neutral.
+            #[cfg(target_os = "macos")]
+            Step::Firewall => "Checking the firewall",
             Step::Updates => "Setting up updates",
             Step::Shortcuts => "Adding shortcuts",
             Step::Cleanup => "Removing files",

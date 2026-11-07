@@ -188,9 +188,9 @@ FocusScope {
         if (AppController.doctorBusy)
             return qsTr("Checking firewall and local network...")
         if (parsedDoctorChecks.length === 0)
-            return Qt.platform.os === "linux"
-                ? qsTr("Run a quick check to verify your firewall and local discovery.")
-                : qsTr("Run a quick check to verify Windows Firewall and local discovery.")
+            return Qt.platform.os === "windows"
+                ? qsTr("Run a quick check to verify Windows Firewall and local discovery.")
+                : qsTr("Run a quick check to verify your firewall and local discovery.")
         let problems = 0
         for (let i = 0; i < parsedDoctorChecks.length; i++) {
             if (parsedDoctorChecks[i].outcome !== "ok")

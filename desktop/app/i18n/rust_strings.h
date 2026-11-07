@@ -220,6 +220,7 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Doctor", "NectarLink is in the top bar"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "NectarLink isn't allowed through Windows Firewall"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "NectarLink isn't allowed through the firewall"), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "NectarLink isn't allowed through the macOS firewall"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "On Huawei / Honor: open Settings → Battery → App launch, turn off Manage automatically for NectarLink, and keep Auto-launch, Secondary launch, and Run in background on."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "On OnePlus / OxygenOS: open Settings → Apps → App management → NectarLink → Battery usage and turn on Allow background activity and Allow auto-launch."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "On Oppo / Realme: open Settings → Apps → App management → NectarLink → Battery usage and turn on Allow background activity and Allow auto-launch."), // desktop/app/src/doctor.rs
@@ -236,11 +237,16 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Doctor", "Phone storage can open in your file manager"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Phone storage needs one more step"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Showing this PC's screen needs one more step"), // desktop/app/src/linux/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "Some networks keep other devices from finding this Mac. If it's your home or work network, open network settings to check it."), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can connect."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Someone chose not to allow it when Windows asked. Allow it, and your phone can connect."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Sound is ready"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The firewall blocks NectarLink"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The firewall is off for this network"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The firewall lets your phone connect"), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "The macOS firewall blocks NectarLink"), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "The macOS firewall is off"), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "The macOS firewall lets your phone connect"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The touchpad and keyboard on your phone need the desktop portal (xdg-desktop-portal) or access to /dev/uinput."), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "This PC can see %1 announce itself on the network, but the router is blocking devices from talking directly to each other (often called AP Isolation, Client Isolation, or Guest Wi-Fi). Move both devices off any Guest Wi-Fi network, turn off AP / Client Isolation in your router's Wi-Fi settings, or connect with a USB cable."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "This PC isn't on a network"), // desktop/app/src/doctor.rs
@@ -255,6 +261,7 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Doctor", "Your phone can show this PC's screen"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Your phone can't control this PC yet"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Your phone may not be able to connect. Allow it once here."), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "Your phone may not be able to connect. Open Firewall settings and allow it."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "a minute ago"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "an hour ago"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "just now"), // desktop/app/src/doctor.rs

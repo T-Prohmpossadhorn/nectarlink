@@ -528,7 +528,7 @@ fn has_v4l2loopback() -> bool {
 /// Linux-specific checks for features that need something installed or
 /// allowed first: `(id, title, ok, detail, fix)`. These don't stop the phone
 /// from connecting; the Doctor lists them after the connection checks.
-pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>)> {
+pub fn platform_checks() -> Vec<(String, String, bool, String, Option<&'static str>)> {
     use crate::i18n::tr;
     let mut out = Vec::new();
     let mut check = |id: &str, ok: bool, ready: String, needs: String, how: String| {
@@ -545,7 +545,7 @@ pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>
     let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
     if desktop.to_ascii_uppercase().contains("GNOME") {
         check(
-            "linux-appindicator",
+            "platform-appindicator",
             session_dbus_has_owner("org.kde.StatusNotifierWatcher"),
             tr!("Doctor", "NectarLink is in the top bar"),
             tr!("Doctor", "NectarLink can't show its icon in the top bar"),
@@ -560,7 +560,7 @@ pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>
     let portal_available = session_dbus_has_owner("org.freedesktop.portal.Desktop");
     let x11_xtst = std::env::var_os("DISPLAY").is_some_and(|v| !v.is_empty()) && has_libxtst();
     check(
-        "linux-remote-input",
+        "platform-remote-input",
         uinput_writable || portal_available || x11_xtst,
         tr!("Doctor", "Your phone can control this PC"),
         tr!("Doctor", "Your phone can't control this PC yet"),
@@ -571,7 +571,7 @@ pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>
     );
 
     check(
-        "linux-fuse",
+        "platform-fuse",
         Path::new("/dev/fuse").exists() && (has_command("fusermount3") || has_command("fusermount")),
         tr!("Doctor", "Phone storage can open in your file manager"),
         tr!("Doctor", "Phone storage needs one more step"),
@@ -579,7 +579,7 @@ pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>
     );
 
     check(
-        "linux-audio",
+        "platform-audio",
         has_command("pactl") || has_command("wpctl") || has_command("pw-play") || has_command("aplay"),
         tr!("Doctor", "Sound is ready"),
         tr!("Doctor", "Calls and alerts can't play sound yet"),
@@ -590,7 +590,7 @@ pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>
     // and GStreamer's PipeWire source; on X11 it reads the screen directly.
     if std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty()) {
         check(
-            "linux-screencast",
+            "platform-screencast",
             portal_available && crate::pc_mirror::pipewire_capture_installed(),
             tr!("Doctor", "Your phone can show this PC's screen"),
             tr!("Doctor", "Showing this PC's screen needs one more step"),
@@ -602,7 +602,7 @@ pub fn linux_checks() -> Vec<(String, String, bool, String, Option<&'static str>
     }
 
     check(
-        "linux-v4l2loopback",
+        "platform-v4l2loopback",
         has_v4l2loopback(),
         tr!("Doctor", "Phone as webcam is ready"),
         tr!("Doctor", "Phone as webcam needs one more step"),
