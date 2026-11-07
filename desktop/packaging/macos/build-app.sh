@@ -8,6 +8,13 @@
 #   cargo build --release -p nectarlink-desktop
 #   QT_ROOT_DIR=~/Qt/6.12.0/macos ./desktop/packaging/macos/build-app.sh
 #
+# ARCH=universal makes one app for Apple Silicon and Intel. It needs a release
+# build for each target and a universal Qt (the Qt installers give you one):
+#
+#   cargo build --release -p nectarlink-desktop --target aarch64-apple-darwin
+#   cargo build --release -p nectarlink-desktop --target x86_64-apple-darwin
+#   ARCH=universal QT_ROOT_DIR=~/Qt/6.12.0/macos ./desktop/packaging/macos/build-app.sh
+#
 # The app isn't signed with a Developer ID or notarized, so the first time it
 # opens macOS asks: Control-click it in Finder and choose Open.
 set -euo pipefail
@@ -16,12 +23,23 @@ REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 VERSION="$(awk -F'"' '/^\[workspace.package\]/{f=1} f && /^version = /{print $2; exit}' Cargo.toml)"
-ARCH="$(uname -m)"
-BIN="${BIN:-target/release/nectarlink-desktop}"
+ARCH="${ARCH:-$(uname -m)}"
 OUT_DIR="${OUT_DIR:-dist}"
 APP="${OUT_DIR}/NectarLink.app"
 
-[[ -x "$BIN" ]] || { echo "build it first: cargo build --release -p nectarlink-desktop" >&2; exit 1; }
+# The executable: the host build, or both targets joined by lipo.
+if [[ "$ARCH" == universal ]]; then
+    ARM_BIN="target/aarch64-apple-darwin/release/nectarlink-desktop"
+    X86_BIN="target/x86_64-apple-darwin/release/nectarlink-desktop"
+    for bin in "$ARM_BIN" "$X86_BIN"; do
+        [[ -x "$bin" ]] || { echo "build it first: cargo build --release -p nectarlink-desktop --target ${bin#target/}" >&2; exit 1; }
+    done
+    BIN="$(mktemp -d)/nectarlink-desktop"
+    lipo -create "$ARM_BIN" "$X86_BIN" -output "$BIN"
+else
+    BIN="${BIN:-target/release/nectarlink-desktop}"
+    [[ -x "$BIN" ]] || { echo "build it first: cargo build --release -p nectarlink-desktop" >&2; exit 1; }
+fi
 MACDEPLOYQT="${QT_ROOT_DIR:+${QT_ROOT_DIR}/bin/}macdeployqt"
 command -v "$MACDEPLOYQT" >/dev/null || { echo "macdeployqt not found; set QT_ROOT_DIR" >&2; exit 1; }
 

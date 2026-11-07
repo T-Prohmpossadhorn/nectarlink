@@ -1,6 +1,6 @@
 # Building and Testing
 
-This document covers the pinned toolchain versions, environment variables, build commands, and test suites required to build and verify NectarLink on Windows and Android.
+This document covers the pinned toolchain versions, environment variables, build commands, and test suites required to build and verify NectarLink on Windows, macOS and Android.
 
 ## Pinned Toolchains
 
@@ -135,6 +135,36 @@ powershell -ExecutionPolicy Bypass -File scripts\package.ps1 -StageOnly
 Artifacts are written to `target/package/`:
 - `target/package/Nectarlink/` (staged portable directory)
 - `target/package/Nectarlink-<version>-x64-setup.exe` or `Nectarlink-<version>-arm64-setup.exe` (NSIS installer when `makensis.exe` is installed)
+
+### 7. macOS App (`desktop/packaging/macos/build-app.sh`)
+
+The macOS port is a preview, and some features are not there yet. The script builds `NectarLink.app` and a zip of it, so you can try the port.
+
+You need:
+
+- macOS 14 or later, with the Xcode command line tools (`codesign`, `lipo`, `iconutil`, `sips`).
+- Qt 6.12 for macOS. The Qt installers give you a universal Qt (arm64 and x86_64).
+- For a universal app, the Rust targets `aarch64-apple-darwin` and `x86_64-apple-darwin`. Run `rustup target add` for each one that is missing.
+
+Set `QT_ROOT_DIR` and `QMAKE` to your Qt, build the release app, then run the script:
+
+```bash
+export QT_ROOT_DIR="$HOME/Qt/6.12.0/macos"
+export QMAKE="$QT_ROOT_DIR/bin/qmake"
+
+# The app for this Mac:
+cargo build --release -p nectarlink-desktop
+./desktop/packaging/macos/build-app.sh
+
+# One app for Apple Silicon and Intel:
+cargo build --release -p nectarlink-desktop --target aarch64-apple-darwin
+cargo build --release -p nectarlink-desktop --target x86_64-apple-darwin
+ARCH=universal ./desktop/packaging/macos/build-app.sh
+```
+
+The script writes `dist/NectarLink.app` and `dist/NectarLink-<version>-macos-<arch>.zip`. For a universal app, `<arch>` is `universal`.
+
+The script signs the app ad hoc, because Apple Silicon runs only signed code. The first time the app opens, Control-click it in Finder and choose Open. To see its log in the terminal, run `dist/NectarLink.app/Contents/MacOS/nectarlink-desktop`.
 
 ## Running the Test Suites
 

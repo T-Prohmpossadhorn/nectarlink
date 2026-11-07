@@ -72,6 +72,10 @@ change things that need a step from you, and its notes say so.
   and unsent queue items written by an earlier macOS build can't be opened with
   the new key, so they start empty once. Thanks to
   [@aydinoglucagan-sudo](https://github.com/aydinoglucagan-sudo).
+- **One Mac app for Apple Silicon and Intel.** `desktop/packaging/macos/build-app.sh` with
+  `ARCH=universal` joins the two release builds into one NectarLink.app, and CI keeps it as a
+  download. It is signed ad hoc, so the first time it opens, Control-click it in Finder and
+  choose Open.
 
 ### Fixed
 
