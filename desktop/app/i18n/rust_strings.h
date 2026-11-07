@@ -202,6 +202,7 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Doctor", "%1 minutes ago"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "%1 · %2 ms"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "A VPN is on"), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "A VPN may be on"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "A firewall rule blocks incoming NectarLink connections. Allow it, and your phone can connect."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Calls and alerts can't play sound yet"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Connect it to the same Wi-Fi or wired network as your phone."), // desktop/app/src/doctor.rs
@@ -248,10 +249,12 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Doctor", "The macOS firewall is off"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The macOS firewall lets your phone connect"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The touchpad and keyboard on your phone need the desktop portal (xdg-desktop-portal) or access to /dev/uinput."), // desktop/app/src/linux/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "This Mac isn't on a network"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "This PC can see %1 announce itself on the network, but the router is blocking devices from talking directly to each other (often called AP Isolation, Client Isolation, or Guest Wi-Fi). Move both devices off any Guest Wi-Fi network, turn off AP / Client Isolation in your router's Wi-Fi settings, or connect with a USB cable."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "This PC isn't on a network"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "This network"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "This usually takes a few seconds."), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "VPNs often keep devices on your network from reaching this Mac. If your phone can't connect, try turning it off."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "VPNs often keep devices on your network from reaching this PC. If your phone can't connect, try turning it off."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "While away"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Windows Firewall blocks NectarLink"), // desktop/app/src/doctor.rs

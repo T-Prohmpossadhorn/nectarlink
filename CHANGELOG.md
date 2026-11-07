@@ -25,7 +25,7 @@ change things that need a step from you, and its notes say so.
   The in-app guide text still names Windows Firewall.
 - **The Mac Connection Doctor reads the firewall, the network and VPNs.** It now says when
   the macOS firewall blocks NectarLink and says which connection it uses, such as Wi-Fi.
-  It also warns when a VPN seems to be on. It shows a firewall result only when it can
+  It also warns when a VPN may be on. It shows a firewall result only when it can
   tell, so it shows nothing if the firewall is on and NectarLink has no entry. Its button
   opens System Settings, and you allow NectarLink there yourself.
 - **More ways to sync a folder.** A synced folder can now go one way from the PC to the

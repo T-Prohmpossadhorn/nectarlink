@@ -11,8 +11,6 @@
 //! unknown, not blocked. Only block-all or an explicit Block entry is a
 //! failure. The macOS firewall is global, so there is no "for this network".
 
-#![allow(unsafe_code)]
-
 use std::{
     io::Read,
     net::{Ipv4Addr, Ipv6Addr},
@@ -30,8 +28,9 @@ const OPEN_TOOL: &str = "/usr/bin/open";
 const TOOL_TIMEOUT: Duration = Duration::from_secs(3);
 /// The most output read from one call. More than this is an error.
 const MAX_OUTPUT: u64 = 1 << 20;
-/// System Settings pane that holds the firewall on macOS 13 and later. No
-/// pane URL is proven, so a failed open falls back to System Settings itself.
+/// System Settings pane for Network on macOS 13 and later. It is not proven
+/// that this URL lands on the firewall, and a failed open falls back to System
+/// Settings itself.
 const FIREWALL_PANE: &str = "x-apple.systempreferences:com.apple.Network-Settings.extension";
 /// Bundle id of System Settings.
 const SETTINGS_BUNDLE: &str = "com.apple.systempreferences";
@@ -251,6 +250,7 @@ struct IfAddrs {
 }
 
 /// Every interface with its addresses, IPv4 and IPv6, by BSD name.
+#[allow(unsafe_code)]
 fn read_interfaces() -> Vec<IfAddrs> {
     let mut out: Vec<IfAddrs> = Vec::new();
     let mut head: *mut libc::ifaddrs = std::ptr::null_mut();
