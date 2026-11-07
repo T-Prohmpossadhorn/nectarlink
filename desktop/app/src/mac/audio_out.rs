@@ -289,17 +289,17 @@ impl Player {
         if name.is_null() {
             return;
         }
+        let name = Owned(name);
         // SAFETY: the property takes a pointer to a `CFStringRef` and its size.
-        // The queue copies the string, so it is released right after.
+        // The value is only read during the call; this function keeps the
+        // string and `Owned` releases it afterwards.
         let status = unsafe {
-            let status = AudioQueueSetProperty(
+            AudioQueueSetProperty(
                 self.queue,
                 PROPERTY_CURRENT_DEVICE,
-                (&raw const name).cast(),
+                (&raw const name.0).cast(),
                 size_of::<CFTypeRef>() as u32,
-            );
-            CFRelease(name);
-            status
+            )
         };
         if status != 0 {
             tracing::warn!(status, "the chosen output was refused; playing on the default output");
@@ -330,6 +330,16 @@ impl Player {
         if let Err(TrySendError::Full(_)) = self.packets.try_send(data) {
             tracing::debug!("a sound packet was dropped");
         }
+    }
+}
+
+/// An owned (Create rule) CF object, released on drop.
+struct Owned(CFTypeRef);
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        // SAFETY: the guard owns one non-null reference and releases it once.
+        unsafe { CFRelease(self.0) };
     }
 }
 

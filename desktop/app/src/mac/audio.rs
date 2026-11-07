@@ -261,13 +261,23 @@ fn property_ids(object: AudioObjectID, address: Address) -> Vec<u32> {
     ids
 }
 
+/// An owned (Create or Copy rule) CF object, released on drop.
+struct Owned(CFTypeRef);
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        // SAFETY: the guard owns one non-null reference and releases it once.
+        unsafe { CFRelease(self.0) };
+    }
+}
+
 /// A property that is a `CFStringRef` (Copy rule: released here), as UTF-8.
 /// `None` for no value, or one that does not fit, so a UID is never cut short.
 fn property_string(object: AudioObjectID, address: Address) -> Option<String> {
     let mut string: CFTypeRef = ptr::null();
     let mut size = size_of::<CFTypeRef>() as u32;
     // SAFETY: `string` has room for one reference. The property is a string the
-    // caller owns, released below once.
+    // caller owns, released once by `Owned`.
     let status = unsafe {
         AudioObjectGetPropertyData(
             object,
@@ -281,13 +291,12 @@ fn property_string(object: AudioObjectID, address: Address) -> Option<String> {
     if status != 0 || string.is_null() {
         return None;
     }
+    let string = Owned(string);
     let mut buf = [0 as c_char; 1024];
     // SAFETY: `string` is a valid CF string; `buf` is writable for its length.
     let ok = unsafe {
-        CFStringGetCString(string, buf.as_mut_ptr(), buf.len() as CFIndex, CF_STRING_ENCODING_UTF8)
+        CFStringGetCString(string.0, buf.as_mut_ptr(), buf.len() as CFIndex, CF_STRING_ENCODING_UTF8)
     };
-    // SAFETY: the one owned reference is released once, after its last use.
-    unsafe { CFRelease(string) };
     if ok == 0 {
         return None;
     }
@@ -373,8 +382,9 @@ struct Registered {
 impl Registered {
     fn new(sender: Sender<()>) -> Option<Registered> {
         // Leaked on purpose, like the callback in `sc.rs`: a notification can
-        // still be running after a listener is removed, and it is one small
-        // value per process (`WATCHING` allows one watch).
+        // still be running after a listener is removed. It is one small value
+        // per watch, and a watch that started is never started again. Only a
+        // registration that fails before any listener was added frees it.
         let client: *mut c_void = Box::into_raw(Box::new(sender)).cast();
         let mut registered = Registered { client, added: Vec::new() };
         for address in WATCHED {
@@ -385,6 +395,12 @@ impl Registered {
             };
             if status != 0 {
                 // Dropping `registered` removes the ones that were added.
+                if registered.added.is_empty() {
+                    drop(registered);
+                    // SAFETY: no listener was ever added, so nothing else
+                    // can reach `client`; it came from `Box::into_raw` above.
+                    drop(unsafe { Box::from_raw(client.cast::<Sender<()>>()) });
+                }
                 return None;
             }
             registered.added.push(address);
