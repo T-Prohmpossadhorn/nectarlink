@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! macOS browser and window inspection. Programs are named by bundle id
 //! (lowercase, "com.google.chrome"), where Windows uses file names. This
-//! file knows which bundle ids are browsers and players, and how an
-//! executable's path leads to its app. The window list, the rectangles and
+//! file knows which bundle ids are browsers, and how an executable's path
+//! leads to its app. The window list, the rectangles and
 //! the page automation are stubs until later PRs.
 //!
 //! Matches the public API of `desktop/app/src/linux/browser.rs`.
@@ -49,9 +49,6 @@ const BROWSERS: [&str; 8] = [
     "com.operasoftware.opera",
 ];
 
-/// Bundle ids of the desktop video players, lowercase.
-const PLAYERS: [&str; 3] = ["org.videolan.vlc", "io.mpv", "com.colliderli.iina"];
-
 /// The programs that may own the window of `player`, a media session's
 /// player id. On macOS that is the bundle id itself, lowercase. A blank id
 /// names no program.
@@ -68,20 +65,13 @@ pub fn is_browser(program: &str) -> bool {
     BROWSERS.contains(&id.as_str())
 }
 
-/// Whether `program` is a known desktop video player.
-// Nothing asks yet: Play on phone for macOS (a later PR) will.
-#[allow(dead_code)]
-pub fn is_player(program: &str) -> bool {
-    let id = program.trim().to_ascii_lowercase();
-    PLAYERS.contains(&id.as_str())
-}
-
 /// The outermost `.app` folder on the path of `exe`, only when the path is
 /// absolute and a `Contents` folder follows that `.app`. A helper inside an
 /// app (`Chrome.app/.../Chrome Helper.app/Contents/MacOS/x`) gives the app
-/// that holds it, because the helper has no bundle id of its own that a
-/// media session would name. A bare binary or a process in a framework or
-/// an XPC service with no app around it gives `None`.
+/// that holds it. This is the conservative choice: a media session is
+/// expected to name the app, but which id a real helper process reports is
+/// not yet known (a hardware check). A bare binary or a process in a
+/// framework or an XPC service with no app around it gives `None`.
 // Nothing calls it yet: the window list (PR 15) finds a window's program
 // with it.
 #[allow(dead_code)]
@@ -150,10 +140,7 @@ mod tests {
     fn players_are_not_browsers() {
         for id in ["org.videolan.vlc", "io.mpv", "com.colliderli.iina"] {
             assert!(!is_browser(id), "{id}");
-            assert!(is_player(id), "{id}");
         }
-        assert!(is_player("org.videolan.VLC"));
-        assert!(!is_player("com.google.chrome"));
     }
 
     #[test]
@@ -170,7 +157,6 @@ mod tests {
             "",
         ] {
             assert!(!is_browser(id), "{id}");
-            assert!(!is_player(id), "{id}");
         }
     }
 
@@ -196,7 +182,8 @@ mod tests {
         for bad in [
             // A bare binary, such as a Homebrew mpv.
             "/opt/homebrew/bin/mpv",
-            // Safari's page processes run from a framework's XPC service.
+            // An assumed example of a page process of Safari, run from a
+            // framework's XPC service. The real path was not measured.
             "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/\
              com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
             // A folder that only has "app" in its name, or no Contents after the app.
