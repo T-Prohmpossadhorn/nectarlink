@@ -1478,7 +1478,7 @@ Item {
                                 title: qsTr("Join this phone's hotspot")
                                 description: hotspotRow.network.length > 0
                                     ? qsTr("When Instant Hotspot turns it on, this PC joins %1.").arg(hotspotRow.network)
-                                    : (Qt.platform.os === "linux"
+                                    : (Qt.platform.os === "linux" || Qt.platform.os === "osx"
                                         ? qsTr("Join the phone's hotspot once from your system Wi-Fi list, then choose it here.")
                                         : qsTr("Join the phone's hotspot once from Windows' Wi-Fi list, then choose it here."))
                                 Button {
@@ -3342,6 +3342,10 @@ Item {
                                     return qsTr("No active network adapter found.")
                                 if (state === "enabled")
                                     return qsTr("%1 · Wake on Magic Packet ready.").arg(adapter)
+                                if (Qt.platform.os === "osx")
+                                    return AppController.wakeWired
+                                        ? qsTr("%1 · Turn on Wake for network access in System Settings.").arg(adapter)
+                                        : qsTr("%1 · A Mac may not wake over Wi-Fi. A cable is more reliable.").arg(adapter)
                                 return qsTr("%1 · Enable Wake on Magic Packet in Device Manager.").arg(adapter)
                             }
                             Row {
@@ -3356,7 +3360,9 @@ Item {
                                     muted: true
                                     text: AppController.wakeState === "enabled" ? qsTr("Ready")
                                         : AppController.wakeState === "disabled"
-                                          ? (Qt.platform.os === "linux" ? qsTr("Off in the adapter's settings") : qsTr("Off in Windows"))
+                                          ? (Qt.platform.os === "linux" ? qsTr("Off in the adapter's settings")
+                                             : Qt.platform.os === "osx" ? qsTr("Off in System Settings")
+                                             : qsTr("Off in Windows"))
                                         : AppController.wakeState === "unknown" ? qsTr("Check settings")
                                         : qsTr("No adapter")
                                 }
@@ -3749,7 +3755,7 @@ Item {
                 wrapMode: Text.WordWrap
                 role: "body"
                 muted: true
-                text: Qt.platform.os === "linux"
+                text: Qt.platform.os === "linux" || Qt.platform.os === "osx"
                     ? (hotspotSheet.networks.length > 0
                         ? qsTr("Wi-Fi networks this PC has joined before. Your system keeps their passwords; NectarLink never sees them.")
                         : qsTr("This PC hasn't saved any Wi-Fi networks yet. Join the phone's hotspot once from your system Wi-Fi list first."))

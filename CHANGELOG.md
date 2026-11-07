@@ -15,6 +15,10 @@ change things that need a step from you, and its notes say so.
 - **Mac finds your phone again after a network change.** On a Mac, NectarLink now notices
   when you switch Wi-Fi, plug in a cable or start a VPN, and tries to reconnect to paired
   phones.
+- **Your phone learns this Mac's wake addresses.** A Mac now tells paired phones the
+  hardware and broadcast addresses of its Ethernet and Wi-Fi adapters, so the phone can
+  try to wake it. Settings › Connection & About shows whether Wake for network access is
+  on. Waking a Mac over Wi-Fi may not work.
 - **More ways to sync a folder.** A synced folder can now go one way from the PC to the
   phone. Phone to PC can also remove from the PC what you delete on the phone: only
   files it synced and that haven't changed on the PC, and they go to the Recycle Bin. Both

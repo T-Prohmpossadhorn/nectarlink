@@ -2626,6 +2626,19 @@ fn load_guide_doc_content(raw_key: &str) -> (String, String) {
              - Paired phone; works online or queues automatically when your phone is offline."
             ),
         ),
+        "wol" if cfg!(target_os = "macos") => (
+            tr!("Guide", "Wake PC"),
+            tr!(
+                "Guide",
+                "What it does\n\
+             Lets your paired phone try to wake this Mac from sleep over your local network using a Wake-on-LAN packet.\n\n\
+             Where to find it\n\
+             - Settings › Connection & About › Wake from your phone.\n\
+             - On your phone: Home › Wake, shown while the Mac is offline.\n\n\
+             What it needs\n\
+             - Wake for network access turned on in System Settings. A Mac with a network cable is the most reliable. A Mac on Wi-Fi may not wake."
+            ),
+        ),
         "wol" => (
             tr!("Guide", "Wake PC"),
             tr!(

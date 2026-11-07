@@ -164,6 +164,12 @@ pub fn hotspot_turned_on(device: DeviceId) {
             match outcome {
                 JoinOutcome::Already => {}
                 JoinOutcome::Joined => show_message(tr!("Hotspot", "Connected to %1's hotspot.", name)),
+                JoinOutcome::NotFound if cfg!(target_os = "macos") => show_message(tr!(
+                    "Hotspot",
+                    "%1's hotspot didn't show up. Check that it's on, then pick %2 in your system Wi-Fi list.",
+                    name,
+                    profile
+                )),
                 JoinOutcome::NotFound => show_message(tr!(
                     "Hotspot",
                     "%1's hotspot didn't show up. Check that it's on, then pick %2 in Windows' Wi-Fi list.",
@@ -172,12 +178,11 @@ pub fn hotspot_turned_on(device: DeviceId) {
                 )),
                 JoinOutcome::Failed(e) => {
                     tracing::warn!(error = e, "couldn't join the phone's hotspot");
-                    show_message(tr!(
-                        "Hotspot",
-                        "Couldn't join %1's hotspot. Pick %2 in Windows' Wi-Fi list.",
-                        name,
-                        profile
-                    ));
+                    show_message(if cfg!(target_os = "macos") {
+                        tr!("Hotspot", "Couldn't join %1's hotspot. Pick %2 in your system Wi-Fi list.", name, profile)
+                    } else {
+                        tr!("Hotspot", "Couldn't join %1's hotspot. Pick %2 in Windows' Wi-Fi list.", name, profile)
+                    });
                 }
             }
         })
