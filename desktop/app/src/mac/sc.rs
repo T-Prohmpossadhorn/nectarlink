@@ -95,7 +95,7 @@ fn cf_string_array(items: &[&str]) -> Option<CFTypeRef> {
             ptr::null(),
             strings.as_ptr(),
             strings.len() as CFIndex,
-            ptr::from_ref(&kCFTypeArrayCallBacks).cast(),
+            (&raw const kCFTypeArrayCallBacks).cast(),
         )
     };
     release_all(&strings);
@@ -131,8 +131,8 @@ impl Subscription {
     /// changed-keys list (configd restarted). The callback is leaked on
     /// purpose: a notification can still be running after `stop`.
     pub fn start(callback: Box<dyn Fn() + Send + Sync>) -> Option<Self> {
-        let boxed: *mut Callback = Box::into_raw(Box::new(callback));
         let name = cf_string("nectarlink")?;
+        let boxed: *mut Callback = Box::into_raw(Box::new(callback));
         let mut context = StoreContext {
             version: 0,
             info: boxed.cast(),
@@ -144,12 +144,18 @@ impl Subscription {
         let store = unsafe { SCDynamicStoreCreate(ptr::null(), name, on_change, &raw mut context) };
         release_all(&[name]);
         if store.is_null() {
+            // SAFETY: no callout can run without a store, so `boxed` is still unique.
+            drop(unsafe { Box::from_raw(boxed) });
             return None;
         }
         let subscription = Self::attach(store);
         if subscription.is_none() {
-            // SAFETY: `store` is an owned reference.
-            unsafe { CFRelease(store) };
+            // SAFETY: `store` is an owned reference. It had no dispatch queue
+            // (attach failed first), so no callout can run and `boxed` is unique.
+            unsafe {
+                CFRelease(store);
+                drop(Box::from_raw(boxed));
+            }
         }
         subscription
     }
