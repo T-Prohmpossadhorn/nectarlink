@@ -2172,37 +2172,37 @@
         <translation>Bazı ağlar diğer cihazların bu Mac&apos;i bulmasını engeller. Ev veya iş ağınızsa ağ ayarlarını açıp kontrol edin.</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="241"/>
-        <source>Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can connect.</source>
-        <translation>macOS sorduğunda biri Reddet&apos;i seçti. Güvenlik duvarı ayarlarını açıp izin verin, telefonunuz bağlanabilsin.</translation>
+        <location filename="rust_strings.h" line="247"/>
+        <source>The macOS firewall blocks incoming connections to NectarLink. Open Firewall settings and allow it, and your phone can connect.</source>
+        <translation>macOS güvenlik duvarı NectarLink&apos;e gelen bağlantıları engelliyor. Güvenlik duvarı ayarlarını açıp izin verin, telefonunuz bağlanabilsin.</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="242"/>
+        <location filename="rust_strings.h" line="241"/>
         <source>Someone chose not to allow it when Windows asked. Allow it, and your phone can connect.</source>
         <translation>Windows sorduğunda birisi izin vermemeyi seçti. İzin verirseniz telefonunuz bağlanabilir.</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="243"/>
+        <location filename="rust_strings.h" line="242"/>
         <source>Sound is ready</source>
         <translation>Ses hazır</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="244"/>
+        <location filename="rust_strings.h" line="243"/>
         <source>The firewall blocks NectarLink</source>
         <translation>Güvenlik duvarı NectarLink&apos;i engelliyor</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="245"/>
+        <location filename="rust_strings.h" line="244"/>
         <source>The firewall is off for this network</source>
         <translation>Bu ağ için güvenlik duvarı kapalı</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="246"/>
+        <location filename="rust_strings.h" line="245"/>
         <source>The firewall lets your phone connect</source>
         <translation>Güvenlik duvarı telefonunuzun bağlanmasına izin veriyor</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="247"/>
+        <location filename="rust_strings.h" line="246"/>
         <source>The macOS firewall blocks NectarLink</source>
         <translation>macOS güvenlik duvarı NectarLink&apos;i engelliyor</translation>
     </message>

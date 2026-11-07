@@ -2172,37 +2172,37 @@
         <translation>有些网络会让其他设备找不到这台 Mac。如果这是你的家庭或工作网络，请打开网络设置检查。</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="241"/>
-        <source>Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can connect.</source>
-        <translation>macOS 询问时有人选择了“不允许”。请打开防火墙设置并允许它，手机就能连接。</translation>
+        <location filename="rust_strings.h" line="247"/>
+        <source>The macOS firewall blocks incoming connections to NectarLink. Open Firewall settings and allow it, and your phone can connect.</source>
+        <translation>macOS 防火墙阻止了 NectarLink 的传入连接。请打开防火墙设置并允许它，手机就能连接。</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="242"/>
+        <location filename="rust_strings.h" line="241"/>
         <source>Someone chose not to allow it when Windows asked. Allow it, and your phone can connect.</source>
         <translation>Windows 询问时有人选择了不允许。允许后，手机即可连接。</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="243"/>
+        <location filename="rust_strings.h" line="242"/>
         <source>Sound is ready</source>
         <translation>声音已就绪</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="244"/>
+        <location filename="rust_strings.h" line="243"/>
         <source>The firewall blocks NectarLink</source>
         <translation>防火墙阻止了 NectarLink</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="245"/>
+        <location filename="rust_strings.h" line="244"/>
         <source>The firewall is off for this network</source>
         <translation>此网络的防火墙已关闭</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="246"/>
+        <location filename="rust_strings.h" line="245"/>
         <source>The firewall lets your phone connect</source>
         <translation>防火墙允许手机连接</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="247"/>
+        <location filename="rust_strings.h" line="246"/>
         <source>The macOS firewall blocks NectarLink</source>
         <translation>macOS 防火墙阻止了 NectarLink</translation>
     </message>

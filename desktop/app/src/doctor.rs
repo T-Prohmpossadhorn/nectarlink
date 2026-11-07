@@ -284,8 +284,8 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
                 tr!("Doctor", "The macOS firewall blocks NectarLink"),
                 tr!(
                     "Doctor",
-                    "Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can \
-                     connect."
+                    "The macOS firewall blocks incoming connections to NectarLink. Open Firewall settings and allow \
+                     it, and your phone can connect."
                 ),
             );
             #[cfg(windows)]
@@ -521,7 +521,9 @@ pub fn fix(id: &str) -> bool {
         #[cfg(target_os = "linux")]
         "network-settings" => windows_checks::open_network_settings(),
         #[cfg(target_os = "macos")]
-        "network-settings" => open_network_settings_with(|url| crate::win::shell::open_url(url).is_ok()),
+        "network-settings" => {
+            fix_with_opener(id, |url| crate::win::shell::open_url(url).is_ok()).unwrap_or(false)
+        }
         #[cfg(windows)]
         "network-settings" => crate::win::shell::open_url("ms-settings:network-status").is_ok(),
         "reconnect" => {
@@ -543,6 +545,16 @@ const MAC_NETWORK_SETTINGS: &str = "x-apple.systempreferences:com.apple.Network-
 #[cfg(target_os = "macos")]
 fn open_network_settings_with(open: impl FnOnce(&str) -> bool) -> bool {
     open(MAC_NETWORK_SETTINGS)
+}
+
+/// Routes a fix id that opens a System Settings pane to the given opener.
+/// Returns `None` for an id that does not open a pane.
+#[cfg(target_os = "macos")]
+fn fix_with_opener(id: &str, open: impl FnOnce(&str) -> bool) -> Option<bool> {
+    match id {
+        "network-settings" => Some(open_network_settings_with(open)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -605,7 +617,7 @@ mod tests {
                 ("network", Outcome::Ok)
             ]
         );
-        assert_eq!(checks[0].fix, firewall_fix());
+        assert_eq!(checks[0].fix, Some(expected_firewall_fix()));
         assert_eq!(checks[1].fix, Some("network-settings"));
         assert!(checks[3].detail.starts_with("Last seen 3 hours ago."), "{}", checks[3].detail);
         assert_eq!(checks[3].fix, Some("reconnect"));
@@ -703,7 +715,7 @@ mod tests {
         let checks = diagnose(&f, 0);
         assert_eq!(checks[0].title, "This PC isn't on a network");
         assert_eq!(checks[1].outcome, Outcome::Warn);
-        assert_eq!(checks[1].fix, firewall_fix());
+        assert_eq!(checks[1].fix, Some(expected_firewall_fix()));
     }
 
     #[test]
@@ -775,6 +787,35 @@ mod tests {
         assert!(diagnose(&f, 0).iter().all(|c| c.id != "profile"));
     }
 
+    /// The literal fix id the sheet receives on this platform.
+    fn expected_firewall_fix() -> &'static str {
+        if cfg!(target_os = "macos") { "firewall-settings" } else { "firewall" }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_fix_ids_route_to_the_given_opener() {
+        let mut seen = String::new();
+        assert_eq!(
+            fix_with_opener("network-settings", |url| {
+                seen = url.to_owned();
+                true
+            }),
+            Some(true)
+        );
+        assert_eq!(seen, "x-apple.systempreferences:com.apple.Network-Settings.extension");
+        assert_eq!(fix_with_opener("network-settings", |_| false), Some(false));
+        let mut called = false;
+        assert_eq!(
+            fix_with_opener("reconnect", |_| {
+                called = true;
+                true
+            }),
+            None
+        );
+        assert!(!called);
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_network_settings_fix_uses_the_given_opener() {
@@ -796,7 +837,8 @@ mod tests {
         let checks = diagnose(&f, 0);
         let row = checks.iter().find(|c| c.id == "platform-demo").unwrap();
         assert_eq!(row.outcome, Outcome::Warn);
-        // The sheet treats "platform-" rows as setup, not as a connection fault.
+        // This mirrors the check in DoctorSheet.qml (connectionWell). It pins
+        // the row id and outcome only; it does not run the QML.
         let connection_well =
             checks.iter().all(|c| c.outcome == Outcome::Ok || c.id.starts_with("platform-"));
         assert!(connection_well);

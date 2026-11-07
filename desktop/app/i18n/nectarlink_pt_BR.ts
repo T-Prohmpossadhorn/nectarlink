@@ -2157,37 +2157,37 @@
         <translation>Algumas redes impedem que outros dispositivos encontrem este Mac. Se for a sua rede de casa ou do trabalho, abra os ajustes de rede para conferir.</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="241"/>
-        <source>Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can connect.</source>
-        <translation>Alguém escolheu Negar quando o macOS perguntou. Abra os ajustes do Firewall e permita, e o seu celular poderá se conectar.</translation>
+        <location filename="rust_strings.h" line="247"/>
+        <source>The macOS firewall blocks incoming connections to NectarLink. Open Firewall settings and allow it, and your phone can connect.</source>
+        <translation>O firewall do macOS bloqueia conexões de entrada para o NectarLink. Abra os ajustes do Firewall e permita, e o seu celular poderá se conectar.</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="242"/>
+        <location filename="rust_strings.h" line="241"/>
         <source>Someone chose not to allow it when Windows asked. Allow it, and your phone can connect.</source>
         <translation>Alguém escolheu não permitir quando o Windows perguntou. Permita, e o celular vai conseguir se conectar.</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="243"/>
+        <location filename="rust_strings.h" line="242"/>
         <source>Sound is ready</source>
         <translation>O som está pronto</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="244"/>
+        <location filename="rust_strings.h" line="243"/>
         <source>The firewall blocks NectarLink</source>
         <translation>O firewall bloqueia o NectarLink</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="245"/>
+        <location filename="rust_strings.h" line="244"/>
         <source>The firewall is off for this network</source>
         <translation>O firewall está desativado para esta rede</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="246"/>
+        <location filename="rust_strings.h" line="245"/>
         <source>The firewall lets your phone connect</source>
         <translation>O firewall permite que seu celular se conecte</translation>
     </message>
     <message>
-        <location filename="rust_strings.h" line="247"/>
+        <location filename="rust_strings.h" line="246"/>
         <source>The macOS firewall blocks NectarLink</source>
         <translation>O firewall do macOS bloqueia o NectarLink</translation>
     </message>

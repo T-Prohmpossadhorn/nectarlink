@@ -2157,37 +2157,37 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="241"/>
-        <source>Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can connect.</source>
+        <location filename="../rust_strings.h" line="247"/>
+        <source>The macOS firewall blocks incoming connections to NectarLink. Open Firewall settings and allow it, and your phone can connect.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="242"/>
+        <location filename="../rust_strings.h" line="241"/>
         <source>Someone chose not to allow it when Windows asked. Allow it, and your phone can connect.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="243"/>
+        <location filename="../rust_strings.h" line="242"/>
         <source>Sound is ready</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="244"/>
+        <location filename="../rust_strings.h" line="243"/>
         <source>The firewall blocks NectarLink</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="245"/>
+        <location filename="../rust_strings.h" line="244"/>
         <source>The firewall is off for this network</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="246"/>
+        <location filename="../rust_strings.h" line="245"/>
         <source>The firewall lets your phone connect</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../rust_strings.h" line="247"/>
+        <location filename="../rust_strings.h" line="246"/>
         <source>The macOS firewall blocks NectarLink</source>
         <translation type="unfinished"></translation>
     </message>

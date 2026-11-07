@@ -238,13 +238,13 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Doctor", "Phone storage needs one more step"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Showing this PC's screen needs one more step"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Some networks keep other devices from finding this Mac. If it's your home or work network, open network settings to check it."), // desktop/app/src/doctor.rs
-    QT_TRANSLATE_NOOP("Doctor", "Someone chose Deny when macOS asked. Open Firewall settings and allow it, and your phone can connect."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Someone chose not to allow it when Windows asked. Allow it, and your phone can connect."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "Sound is ready"), // desktop/app/src/linux/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The firewall blocks NectarLink"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The firewall is off for this network"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The firewall lets your phone connect"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The macOS firewall blocks NectarLink"), // desktop/app/src/doctor.rs
+    QT_TRANSLATE_NOOP("Doctor", "The macOS firewall blocks incoming connections to NectarLink. Open Firewall settings and allow it, and your phone can connect."), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The macOS firewall is off"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The macOS firewall lets your phone connect"), // desktop/app/src/doctor.rs
     QT_TRANSLATE_NOOP("Doctor", "The touchpad and keyboard on your phone need the desktop portal (xdg-desktop-portal) or access to /dev/uinput."), // desktop/app/src/linux/doctor.rs

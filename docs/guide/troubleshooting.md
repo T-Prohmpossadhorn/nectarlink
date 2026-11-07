@@ -4,7 +4,7 @@ If your phone and PC cannot find each other, disconnect when your phone screen t
 
 ## 1. Run the `Connection Doctor` First
 
-NectarLink includes a built-in diagnostic tool on Windows, Linux and macOS that automatically detects the most common network blockers and fixes what it can.
+NectarLink includes a built-in diagnostic tool on Windows and Linux that automatically detects the most common network blockers and fixes what it can. The Mac app is a preview, and its Connection Doctor is limited for now. See [Known limitations](known-limitations.md).
 
 1. On your PC, open **Settings › Connection & About**.
 2. Next to **Connection Doctor**, click **Check**.
