@@ -56,6 +56,8 @@ pub mod qobject {
         #[qproperty(QString, busy_item, cxx_name = "busyItem")]
         #[qproperty(QString, save_folder, cxx_name = "saveFolder")]
         #[qproperty(i32, revision)]
+        /// Whether this system has a share sheet: Share buttons show only when it does.
+        #[qproperty(bool, can_share, cxx_name = "canShare")]
         type Photos = super::PhotosRust;
     }
 
@@ -168,6 +170,7 @@ pub struct PhotosRust {
     busy_item: QString,
     save_folder: QString,
     revision: i32,
+    can_share: bool,
     rows: Vec<ItemRow>,
     last_albums: String,
 }
@@ -230,6 +233,7 @@ impl cxx_qt::Initialize for qobject::Photos {
         self.as_mut().set_status(QString::from("idle"));
         self.as_mut().set_albums(QString::from("[]"));
         self.as_mut().set_save_folder(QString::from(DEFAULT_SAVE_FOLDER));
+        self.as_mut().set_can_share(crate::win::share::can_share());
         super::subscribe(self.qt_thread(), Changes::PHOTOS, Self::update_view);
         self.update_view();
     }
@@ -462,6 +466,15 @@ impl qobject::Photos {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Where there is no share sheet, `show` fails and `can_share` says so, so
+    /// the Share buttons stay hidden. (On Windows `show` would open a sheet.)
+    #[cfg(not(windows))]
+    #[test]
+    fn can_share_matches_what_show_can_do() {
+        assert!(!crate::win::share::can_share());
+        assert!(crate::win::share::show(&[]).is_err());
+    }
 
     #[test]
     fn roles_describe_gallery_item() {

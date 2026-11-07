@@ -227,12 +227,20 @@ Item {
         }
     ]
 
+    // Permissions that do nothing on this system, so they are not offered.
+    // "storage" opens the phone in File Explorer or the file manager; a Mac has neither.
+    function permissionAvailable(name) {
+        return !(name === "storage" && Qt.platform.os === "osx")
+    }
+
     function groupTogglesFor(allToggles, groupKeys, isLastGroup, allGroupKeys) {
         if (!allToggles || allToggles.length === 0)
             return []
         const res = []
         for (let i = 0; i < groupKeys.length; i++) {
             const k = groupKeys[i]
+            if (!permissionAvailable(k))
+                continue
             for (let j = 0; j < allToggles.length; j++) {
                 if (allToggles[j].name === k) {
                     res.push(allToggles[j])
@@ -243,7 +251,7 @@ Item {
         if (isLastGroup) {
             for (let j = 0; j < allToggles.length; j++) {
                 const name = allToggles[j].name
-                if (allGroupKeys.indexOf(name) === -1)
+                if (allGroupKeys.indexOf(name) === -1 && permissionAvailable(name))
                     res.push(allToggles[j])
             }
         }
@@ -2204,14 +2212,19 @@ Item {
                         Item {
                             id: filesSharePairRow
                             width: parent.width
-                            readonly property bool splitCols: width >= 460
+                            // A Mac has no Send to menu: its row goes, and the other one takes the whole width.
+                            readonly property bool showSendTo: Preferences.sendToAvailable
+                            readonly property bool splitCols: showSendTo && width >= 460
                             readonly property real colWidth: splitCols ? Math.floor((width - 37) / 2) : width
-                            implicitHeight: splitCols
-                                ? Math.max(sendToMenuRow.implicitHeight, pcInPocketRow.implicitHeight)
-                                : (sendToMenuRow.implicitHeight + 1 + pcInPocketRow.implicitHeight)
+                            implicitHeight: !showSendTo
+                                ? pcInPocketRow.implicitHeight
+                                : splitCols
+                                    ? Math.max(sendToMenuRow.implicitHeight, pcInPocketRow.implicitHeight)
+                                    : (sendToMenuRow.implicitHeight + 1 + pcInPocketRow.implicitHeight)
 
                             ListRow {
                                 id: sendToMenuRow
+                                visible: filesSharePairRow.showSendTo
                                 x: 0
                                 y: filesSharePairRow.splitCols ? Math.round((parent.height - height) / 2) : 0
                                 width: filesSharePairRow.colWidth
@@ -2235,7 +2248,7 @@ Item {
                             }
 
                             Divider {
-                                visible: !filesSharePairRow.splitCols
+                                visible: filesSharePairRow.showSendTo && !filesSharePairRow.splitCols
                                 y: sendToMenuRow.implicitHeight
                                 width: parent.width
                             }
@@ -2245,7 +2258,7 @@ Item {
                                 x: filesSharePairRow.splitCols ? (parent.width - width) : 0
                                 y: filesSharePairRow.splitCols
                                     ? Math.round((parent.height - height) / 2)
-                                    : (sendToMenuRow.implicitHeight + 1)
+                                    : (filesSharePairRow.showSendTo ? sendToMenuRow.implicitHeight + 1 : 0)
                                 width: filesSharePairRow.colWidth
                                 iconPath: Icons.folder
                                 title: qsTr("Your PC in your pocket")

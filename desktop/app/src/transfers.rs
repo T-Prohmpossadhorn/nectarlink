@@ -215,14 +215,21 @@ pub fn resume(id: &str) {
     }
 }
 
-/// Opens a received file with its app (or a folder in File Explorer).
+/// The program that opens a file or folder with its app: `open` on a Mac,
+/// Explorer on Windows. (Linux has its own way in `win::shell::open_file`.)
+#[cfg(not(target_os = "linux"))]
+fn opener_program(macos: bool) -> &'static str {
+    if macos { "open" } else { "explorer" }
+}
+
+/// Opens a received file with its app (or a folder in File Explorer or Finder).
 pub fn open(path: &Path) {
     if path.to_str().is_some_and(|s| s.starts_with("req:")) {
         crate::bridge::app::request_activation();
         return;
     }
     #[cfg(not(target_os = "linux"))]
-    if let Err(e) = std::process::Command::new("explorer").arg(path).spawn() {
+    if let Err(e) = std::process::Command::new(opener_program(cfg!(target_os = "macos"))).arg(path).spawn() {
         tracing::warn!(error = %e, "can't open a received file");
     }
     #[cfg(target_os = "linux")]
@@ -286,6 +293,17 @@ mod select_tests {
     fn forward_slashes_become_backslashes() {
         let arg = explorer_select_arg(Path::new("C:/Users/me/Downloads/a.rar"));
         assert_eq!(arg, r#"/select,"C:\Users\me\Downloads\a.rar""#);
+    }
+}
+
+#[cfg(all(test, not(target_os = "linux")))]
+mod opener_tests {
+    use super::*;
+
+    #[test]
+    fn a_mac_opens_with_open_and_windows_with_explorer() {
+        assert_eq!(opener_program(true), "open");
+        assert_eq!(opener_program(false), "explorer");
     }
 }
 

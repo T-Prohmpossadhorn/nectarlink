@@ -19,14 +19,18 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("App", "NectarLink · 1 device connected"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "NectarLink · no devices paired"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "NectarLink · not connected"), // desktop/app/src/bridge/app.rs
+    QT_TRANSLATE_NOOP("App", "No paired phone is connected."), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "No phone is paired yet."), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Open NectarLink"), // desktop/app/src/bridge/app.rs
+    QT_TRANSLATE_NOOP("App", "Open Timeline"), // desktop/app/src/mac/jumplist.rs
     QT_TRANSLATE_NOOP("App", "Open copied link on phone"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Pause phone notifications"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Quit NectarLink"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Resume phone notifications"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Scan document with phone"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Send cancelled"), // desktop/app/src/bridge/app.rs
+    QT_TRANSLATE_NOOP("App", "Send clipboard"), // desktop/app/src/mac/jumplist.rs
+    QT_TRANSLATE_NOOP("App", "Send files"), // desktop/app/src/mac/jumplist.rs
     QT_TRANSLATE_NOOP("App", "Sending to %1…"), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Sent text to %1."), // desktop/app/src/bridge/app.rs
     QT_TRANSLATE_NOOP("App", "Some history couldn't be cleared. Try again."), // desktop/app/src/bridge/app.rs

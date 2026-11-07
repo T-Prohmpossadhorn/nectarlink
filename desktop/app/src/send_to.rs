@@ -67,6 +67,13 @@ pub fn start() {
     });
 }
 
+/// Whether this system has a "Send to" menu to put phones in. A Mac has none:
+/// its Send to is the Services menu, which has its own switch. (A plain
+/// answer: [`shortcut::send_to_dir`] makes the folder on Linux.)
+pub fn available() -> bool {
+    !cfg!(target_os = "macos")
+}
+
 pub fn set_enabled(on: bool) {
     ENABLED.store(on, Ordering::Relaxed);
     sync();
@@ -543,6 +550,14 @@ fn size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_mac_has_no_send_to_menu() {
+        assert_eq!(available(), !cfg!(target_os = "macos"));
+        // Where it is missing, the folder for it is missing too.
+        #[cfg(target_os = "macos")]
+        assert!(shortcut::send_to_dir().is_none());
+    }
 
     #[test]
     fn device_names_become_file_names() {
