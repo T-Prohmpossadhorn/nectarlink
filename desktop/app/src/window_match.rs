@@ -200,7 +200,7 @@ mod tests {
         let list = [("chrome", "Mail"), ("chrome", "Big Song Great - YouTube")];
         assert_eq!(pick(&list, &["chrome"], "Great Big Songs"), Some(1));
         // One word is not enough: the first window of the program stays.
-        let list = [("chrome", "Mail"), ("chrome", "Song - YouTube")];
+        let list = [("chrome", "Mail"), ("chrome", "Big - YouTube")];
         assert_eq!(pick(&list, &["chrome"], "Great Big Songs"), Some(0));
     }
 
@@ -211,6 +211,8 @@ mod tests {
         assert_eq!(pick(&list, &[], "A Trailer"), Some(0));
         let list = [("zen", "Abc - YouTube - Zen Browser")];
         assert_eq!(pick(&list, &[], "Abc"), None);
+        // The title holds the five bytes, so only the length rule rejects it.
+        let list = [("zen", "Abcde - YouTube - Zen Browser")];
         assert_eq!(pick(&list, &[], "Abcde"), None);
         let list = [("zen", "Abcdef - YouTube - Zen Browser")];
         assert_eq!(pick(&list, &[], "Abcdef"), Some(0));
