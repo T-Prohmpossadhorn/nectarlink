@@ -24,8 +24,9 @@ use std::{
 use nectarlink_core::{PcWakeInfo, format_mac, ipv4_broadcast, parse_mac};
 
 /// The protocol allows at most this many addresses in one `pc.wake_info`
-/// (`wake::MAX_ADAPTERS` in the protocol crate). `build_info_is_valid` checks
-/// that the result stays valid with more adapters than this.
+/// (`wake::MAX_ADAPTERS` in the protocol crate). `caps_the_adapter_count` checks
+/// the limit in `filter_adapters`, and `build_info_is_valid` checks that
+/// `build_info` stays valid even when given more adapters than this.
 const MAX_ADAPTERS: usize = 8;
 
 /// A `pmset` answer is reused for this long, so a window focus or a network
@@ -422,9 +423,10 @@ mod tests {
 
     #[test]
     fn virtual_port_names() {
-        for name in
-            ["lo0", "utun3", "awdl0", "llw0", "bridge0", "gif0", "stf0", "ap1", "anpi0", "vmnet8", "UTUN1"]
-        {
+        for name in [
+            "lo0", "utun3", "awdl0", "llw0", "bridge0", "gif0", "stf0", "ap1", "anpi0", "p2p0", "vmnet8",
+            "vmenet0", "vnic0", "vboxnet0", "feth0", "tap0", "ppp0", "UTUN1",
+        ] {
             assert!(is_virtual_port_name(name), "{name}");
         }
         for name in ["en0", "en1", "en12"] {
@@ -533,11 +535,17 @@ mod tests {
 
     #[test]
     fn build_info_is_valid() {
+        // Hand-built, so `build_info` sees more adapters than the limit.
         let many: Vec<_> = (0..MAX_ADAPTERS + 4)
-            .map(|i| raw(&format!("en{i}"), true, &format!("a4:83:e7:00:00:{:02x}", i + 1)))
+            .map(|i| WakeAdapter {
+                label: format!("en{i}"),
+                wired: true,
+                mac: format!("a4:83:e7:00:00:{:02x}", i + 1),
+                broadcasts: vec!["192.168.1.255".into()],
+                support: WakeSupport::Unknown,
+            })
             .collect();
-        let adapters = filter_adapters(many, None);
-        let info = build_info(&adapters);
+        let info = build_info(&many);
         assert!(info.is_valid());
         assert_eq!(info.macs.len(), MAX_ADAPTERS);
         assert_eq!(info.broadcasts, ["192.168.1.255"]);

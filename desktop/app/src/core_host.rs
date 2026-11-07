@@ -495,7 +495,9 @@ mod tests {
             "macOS must not advertise media.stream"
         );
         assert!(!caps.contains(&nectarlink_core::MIC_LISTEN.into()), "macOS must not advertise mic.listen");
-        // `pc.wake` depends on this Mac's adapters, so only the switch is tested.
+        // `pc.wake` depends on this Mac's adapters. No adapter is read in a test
+        // process, so it must be absent here. The switch is tested below.
+        assert!(!caps.contains(&nectarlink_core::PC_WAKE.into()), "macOS needs an adapter for pc.wake");
         let mut with_wake = caps.clone();
         with_wake.retain(|c| c.as_str() != nectarlink_core::PC_WAKE);
         let mut without_wake = with_wake.clone();

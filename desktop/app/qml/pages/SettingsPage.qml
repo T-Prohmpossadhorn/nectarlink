@@ -3344,7 +3344,9 @@ Item {
                                     return qsTr("%1 · Wake on Magic Packet ready.").arg(adapter)
                                 if (Qt.platform.os === "osx")
                                     return AppController.wakeWired
-                                        ? qsTr("%1 · Turn on Wake for network access in System Settings.").arg(adapter)
+                                        ? (state === "disabled"
+                                           ? qsTr("%1 · Turn on Wake for network access in System Settings.").arg(adapter)
+                                           : qsTr("%1 · Check Wake for network access in System Settings.").arg(adapter))
                                         : qsTr("%1 · A Mac may not wake over Wi-Fi. A cable is more reliable.").arg(adapter)
                                 return qsTr("%1 · Enable Wake on Magic Packet in Device Manager.").arg(adapter)
                             }

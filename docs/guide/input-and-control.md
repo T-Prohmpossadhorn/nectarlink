@@ -100,7 +100,7 @@ When your phone is resting on a charger or desk stand, tap **Desk clock** on the
 - **Wake PC (Wake-on-LAN)**: When your PC is asleep or powered off, tap **Wake** on your phone (or on the Android home-screen widget).
   - On the local network, your phone sends Wake-on-LAN UDP packets to every MAC and broadcast address stored for your PC during prior connections.
   - If you have another NectarLink device online on your home LAN while you are on mobile data (**Connect over mobile data**), NectarLink can also relay the wake request through your online home device.
-  - Check **Settings › Connection & About › Wake from your phone** on your PC to verify whether your Windows network adapter has Wake on LAN enabled in Device Manager. On a Mac, the same place shows whether **Wake for network access** is on. A Mac on Wi-Fi shows **Check settings**, because the Mac gives no answer per adapter.
+  - Check **Settings › Connection & About › Wake from your phone** on your PC to verify whether your Windows network adapter has Wake on LAN enabled in Device Manager. On a Mac, the same place shows whether **Wake for network access** is on. A Mac with only Wi-Fi shows **Check settings**.
 
 ## What the Options Do
 
