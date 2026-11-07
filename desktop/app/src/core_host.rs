@@ -150,8 +150,9 @@ pub fn compute_capabilities(
                 caps.push(nectarlink_core::MEDIA_STREAM.into());
             }
         }
-        caps.push(nectarlink_core::MIC_LISTEN.into());
     }
+    // The phone's microphone plays on any output (audio queue on a Mac).
+    caps.push(nectarlink_core::MIC_LISTEN.into());
     #[cfg(any(windows, target_os = "linux"))]
     let mut pc_mirror_enabled = crate::pc_mirror::is_active();
     #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
@@ -494,7 +495,6 @@ mod tests {
             !caps.contains(&nectarlink_core::MEDIA_STREAM.into()),
             "macOS must not advertise media.stream"
         );
-        assert!(!caps.contains(&nectarlink_core::MIC_LISTEN.into()), "macOS must not advertise mic.listen");
         // `pc.wake` depends on this Mac's adapters. No adapter is read in a test
         // process, so it must be absent here. The switch is tested below.
         assert!(!caps.contains(&nectarlink_core::PC_WAKE.into()), "macOS needs an adapter for pc.wake");
@@ -515,5 +515,6 @@ mod tests {
         assert!(caps.contains(&nectarlink_core::CONTACTS_SHOW.into()));
         assert!(caps.contains(&nectarlink_core::SMS_SHOW.into()));
         assert!(caps.contains(&nectarlink_core::TOGGLES_SHOW.into()));
+        assert!(caps.contains(&nectarlink_core::MIC_LISTEN.into()), "the phone's microphone plays on a Mac");
     }
 }
