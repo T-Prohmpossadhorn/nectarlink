@@ -28,6 +28,7 @@ mod hotspot;
 mod i18n;
 mod icons;
 mod input_share;
+mod key_names;
 mod launch;
 mod links;
 mod local_api;

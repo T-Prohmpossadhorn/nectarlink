@@ -12,6 +12,15 @@ change things that need a step from you, and its notes say so.
   the Windows PC, every screen is translated. Settings › Appearance › Language
   picks it, or the system language does. Thanks to
   [@wuwenhou](https://github.com/wuwenhou).
+- **Mac words and keys in the app.** On a Mac, the app now says Command, Option and Control
+  where it said Ctrl, Alt and Win. Settings and the Walkthrough say Start at login, not Start
+  with Windows. Settings says Stay in the menu bar, not Stay in system tray. A Mac that
+  starts NectarLink at login does not hide its window yet. The Command palette button, the
+  Walkthrough and the Features guide name Command+K. The Deck shows Command+Tab and
+  Shift+Command+5, picks an application with a .app file, and no longer offers Show desktop,
+  which a Mac cannot do yet. Linux and Windows keep their old words. The global shortcuts
+  and the Ctrl and Win boxes in Settings are not changed yet. This is not tested on a Mac
+  yet.
 - **A NectarLink item in the Mac menu bar.** A click on it should open a menu with the same
   items as the tray on Windows and Linux: Open, Command palette, Shelf, the phone actions,
   pause or resume for phone notifications, and Quit. The picture should follow the color of

@@ -170,6 +170,7 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("ContinuityCamera", "Camera permission was denied on %1."), // desktop/app/src/continuity_camera.rs
     QT_TRANSLATE_NOOP("ContinuityCamera", "Couldn’t copy image to clipboard: %1"), // desktop/app/src/continuity_camera.rs
     QT_TRANSLATE_NOOP("ContinuityCamera", "Couldn’t open camera on %1: %2"), // desktop/app/src/continuity_camera.rs
+    QT_TRANSLATE_NOOP("ContinuityCamera", "Image is on your clipboard. Press %1 in your target app."), // desktop/app/src/continuity_camera.rs
     QT_TRANSLATE_NOOP("ContinuityCamera", "Image is on your clipboard. Press Ctrl+V in your target app."), // desktop/app/src/continuity_camera.rs
     QT_TRANSLATE_NOOP("ContinuityCamera", "Opening camera on %1…"), // desktop/app/src/continuity_camera.rs
     QT_TRANSLATE_NOOP("ContinuityCamera", "Opening document scanner on %1…"), // desktop/app/src/continuity_camera.rs
@@ -483,6 +484,10 @@ static const char *const nectarlink_rust_strings[] = {
     QT_TRANSLATE_NOOP("Setup", "There's already a %1 folder there with files in it. Choose another place."), // desktop/app/src/win/install_dir.rs
     QT_TRANSLATE_NOOP("Setup", "Uninstall stopped with code %1."), // desktop/app/src/setup.rs
     QT_TRANSLATE_NOOP("Setup", "Updates here will ask for your permission each time."), // desktop/app/src/bridge/setup.rs
+    QT_TRANSLATE_NOOP("Shortcuts", "Command"), // desktop/app/src/key_names.rs
+    QT_TRANSLATE_NOOP("Shortcuts", "Control"), // desktop/app/src/key_names.rs
+    QT_TRANSLATE_NOOP("Shortcuts", "Option"), // desktop/app/src/key_names.rs
+    QT_TRANSLATE_NOOP("Shortcuts", "Shift"), // desktop/app/src/key_names.rs
     QT_TRANSLATE_NOOP("Storage", "%1's files aren't shared with this PC"), // desktop/app/src/storage.rs
     QT_TRANSLATE_NOOP("Storage", "On the phone, allow All files access for NectarLink."), // desktop/app/src/storage.rs
     QT_TRANSLATE_NOOP("Storage", "On the phone, turn on Browse this phone's storage in File Explorer in NectarLink."), // desktop/app/src/storage.rs

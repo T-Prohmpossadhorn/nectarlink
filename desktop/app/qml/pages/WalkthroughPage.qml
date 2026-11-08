@@ -1464,17 +1464,17 @@ FocusScope {
 
                                         Txt {
                                             Layout.fillWidth: true
-                                            text: Qt.platform.os === "linux" ? qsTr("Desktop notifications") : qsTr("Windows notifications")
+                                            text: Qt.platform.os !== "windows" ? qsTr("Desktop notifications") : qsTr("Windows notifications")
                                             role: "title"
                                         }
 
                                         Txt {
                                             Layout.fillWidth: true
                                             text: AppController.toastsEnabled
-                                                ? (Qt.platform.os === "linux"
+                                                ? (Qt.platform.os !== "windows"
                                                     ? qsTr("Enabled in desktop notification settings.")
                                                     : qsTr("Enabled in Windows Settings."))
-                                                : (Qt.platform.os === "linux"
+                                                : (Qt.platform.os !== "windows"
                                                     ? qsTr("Notifications are muted or Do Not Disturb is active.")
                                                     : qsTr("Notifications are off for NectarLink in Windows Settings."))
                                             role: "caption"
@@ -1546,13 +1546,15 @@ FocusScope {
 
                                         Txt {
                                             Layout.fillWidth: true
-                                            text: Qt.platform.os === "linux" ? qsTr("Start at login") : qsTr("Start with Windows")
+                                            text: Qt.platform.os !== "windows" ? qsTr("Start at login") : qsTr("Start with Windows")
                                             role: "title"
                                         }
 
                                         Txt {
                                             Layout.fillWidth: true
-                                            text: qsTr("Keep NectarLink ready in the system tray when you sign in.")
+                                            text: Qt.platform.os === "osx"
+                                                ? qsTr("Open NectarLink when you sign in.")
+                                                : qsTr("Keep NectarLink ready in the system tray when you sign in.")
                                             role: "caption"
                                             color: Theme.surfaceContentVariant
                                             wrapMode: Text.WordWrap
@@ -1560,7 +1562,7 @@ FocusScope {
                                     }
 
                                     Toggle {
-                                        label: Qt.platform.os === "linux" ? qsTr("Start at login") : qsTr("Start with Windows")
+                                        label: Qt.platform.os !== "windows" ? qsTr("Start at login") : qsTr("Start with Windows")
                                         checked: Preferences.startWithWindows
                                         onToggled: next => Preferences.startWithWindows = next
                                     }
@@ -1656,8 +1658,12 @@ FocusScope {
                                     },
                                     {
                                         icon: Icons.search,
-                                        title: qsTr("Command Palette (Ctrl+K)"),
-                                        body: qsTr("Press Ctrl+K from anywhere in the app to jump to features, send files, or run actions.")
+                                        title: Qt.platform.os === "osx"
+                                            ? qsTr("Command Palette (%1)").arg(AppController.shortcutLabel("Ctrl+K", false))
+                                            : qsTr("Command Palette (Ctrl+K)"),
+                                        body: Qt.platform.os === "osx"
+                                            ? qsTr("Press %1 from anywhere in the app to jump to features, send files, or run actions.").arg(AppController.shortcutLabel("Ctrl+K", false))
+                                            : qsTr("Press Ctrl+K from anywhere in the app to jump to features, send files, or run actions.")
                                     },
                                     {
                                         icon: Icons.book,

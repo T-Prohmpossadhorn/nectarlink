@@ -392,9 +392,12 @@ Item {
                     anchors.rightMargin: 16
                     anchors.verticalCenter: parent.verticalCenter
                     text: {
-                        const hk = Preferences.commandPaletteHotkey.length > 0
-                            ? Preferences.commandPaletteHotkey
-                            : "Ctrl+K"
+                        // A Mac has no global hotkey yet, so it shows the shortcut inside the app.
+                        const hk = Qt.platform.os === "osx"
+                            ? AppController.shortcutLabel("Ctrl+K", false)
+                            : Preferences.commandPaletteHotkey.length > 0
+                                ? Preferences.commandPaletteHotkey
+                                : "Ctrl+K"
                         if (AppController.commandPaletteOpenMs <= 0)
                             return hk
                         const msText = AppController.commandPaletteOpenMs < 10

@@ -81,11 +81,11 @@ Item {
             return ""
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
             return ""
-        const mods = []
-        if (event.modifiers & Qt.ControlModifier) mods.push("Ctrl")
-        if (event.modifiers & Qt.AltModifier) mods.push("Alt")
-        if (event.modifiers & Qt.ShiftModifier) mods.push("Shift")
-        if (event.modifiers & Qt.MetaModifier) mods.push(Qt.platform.os === "linux" ? "Super" : "Win")
+        // Qt swaps Control and Command on a Mac: Command is ControlModifier and is
+        // stored as Ctrl, Control is MetaModifier and is stored as Win.
+        const mods = AppController.recordedModifiers(
+            (event.modifiers & Qt.ControlModifier) !== 0, (event.modifiers & Qt.AltModifier) !== 0,
+            (event.modifiers & Qt.ShiftModifier) !== 0, (event.modifiers & Qt.MetaModifier) !== 0)
         if (mods.length === 0)
             return ""
         let keyName = ""
@@ -98,7 +98,7 @@ Item {
             keyName = "F" + (event.key - Qt.Key_F1 + 1)
         if (keyName.length === 0)
             return ""
-        return mods.join("+") + "+" + keyName
+        return mods + "+" + keyName
     }
 
     onActiveChanged: syncSectionSideEffects()
@@ -179,7 +179,7 @@ Item {
         pc_mirror: qsTr("Share PC screen to phone"),
         webcam: qsTr("Webcam"),
         mic: qsTr("Phone as microphone"),
-        storage: Qt.platform.os === "linux" ? qsTr("File manager integration") : qsTr("File Explorer integration"),
+        storage: Qt.platform.os !== "windows" ? qsTr("File manager integration") : qsTr("File Explorer integration"),
         remote_input: qsTr("Remote mouse, keyboard & Deck"),
         commands: qsTr("Run Deck shell commands"),
         remote_files: qsTr("Remote PC file access")
@@ -844,7 +844,7 @@ Item {
                             iconPath: Icons.sparkle
                             title: qsTr("Animated comb")
                             description: AppController.reduceMotion
-                                ? (Qt.platform.os === "linux"
+                                ? (Qt.platform.os !== "windows"
                                     ? qsTr("Still while animations are off in system settings.")
                                     : qsTr("Still while animations are off in Windows."))
                                 : (AppController.powerSaver
@@ -953,7 +953,7 @@ Item {
                             width: parent.width
                             iconPath: Icons.globe
                             title: qsTr("Language")
-                            description: Qt.platform.os === "linux"
+                            description: Qt.platform.os !== "windows"
                                 ? qsTr("NectarLink follows the system unless you pick one.")
                                 : qsTr("NectarLink follows Windows unless you pick one.")
                             Segmented {
@@ -993,10 +993,12 @@ Item {
                                 y: startupPairRow.splitCols ? Math.round((parent.height - height) / 2) : 0
                                 width: startupPairRow.colWidth
                                 iconPath: Icons.power
-                                title: Qt.platform.os === "linux" ? qsTr("Start at login") : qsTr("Start with Windows")
-                                description: qsTr("Launch in the tray when you sign in.")
+                                title: Qt.platform.os !== "windows" ? qsTr("Start at login") : qsTr("Start with Windows")
+                                description: Qt.platform.os === "osx"
+                                    ? qsTr("Open NectarLink when you sign in.")
+                                    : qsTr("Launch in the tray when you sign in.")
                                 Toggle {
-                                    label: Qt.platform.os === "linux" ? qsTr("Start at login") : qsTr("Start with Windows")
+                                    label: Qt.platform.os !== "windows" ? qsTr("Start at login") : qsTr("Start with Windows")
                                     checked: Preferences.startWithWindows
                                     onToggled: (on) => Preferences.startWithWindows = on
                                 }
@@ -1025,10 +1027,10 @@ Item {
                                     : (startWinRow.implicitHeight + 1)
                                 width: startupPairRow.colWidth
                                 iconPath: Icons.window
-                                title: qsTr("Stay in system tray")
+                                title: Qt.platform.os === "osx" ? qsTr("Stay in the menu bar") : qsTr("Stay in system tray")
                                 description: qsTr("Keep running when the window is closed.")
                                 Toggle {
-                                    label: qsTr("Stay in system tray")
+                                    label: Qt.platform.os === "osx" ? qsTr("Stay in the menu bar") : qsTr("Stay in system tray")
                                     checked: Preferences.closeToTray
                                     onToggled: (on) => Preferences.closeToTray = on
                                 }
@@ -1305,7 +1307,9 @@ Item {
                                 width: copyPairRow.colWidth
                                 iconPath: Icons.copy
                                 title: qsTr("Copy received files")
-                                description: qsTr("Ready to Ctrl+V incoming files anywhere.")
+                                description: Qt.platform.os === "osx"
+                                    ? qsTr("Ready to paste incoming files with %1 anywhere.").arg(AppController.shortcutLabel("Ctrl+V", false))
+                                    : qsTr("Ready to Ctrl+V incoming files anywhere.")
                                 Toggle {
                                     label: qsTr("Copy received files")
                                     checked: Preferences.clipboardAutoCopyReceivedFiles
@@ -2224,10 +2228,10 @@ Item {
                                 y: filesSharePairRow.splitCols ? Math.round((parent.height - height) / 2) : 0
                                 width: filesSharePairRow.colWidth
                                 iconPath: Icons.send
-                                title: Qt.platform.os === "linux" ? qsTr("File manager Send to") : qsTr("File Explorer Send to")
+                                title: Qt.platform.os !== "windows" ? qsTr("File manager Send to") : qsTr("File Explorer Send to")
                                 description: qsTr("Send files from right-click menu.")
                                 Toggle {
-                                    label: Qt.platform.os === "linux" ? qsTr("File manager Send to") : qsTr("File Explorer Send to")
+                                    label: Qt.platform.os !== "windows" ? qsTr("File manager Send to") : qsTr("File Explorer Send to")
                                     checked: Preferences.sendToMenu
                                     onToggled: (on) => Preferences.sendToMenu = on
                                 }

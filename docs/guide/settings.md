@@ -33,8 +33,8 @@ Controls startup behavior, the system tray, `Nectar Island`, battery notificatio
 
 | Setting | Default | What It Does |
 | :--- | :--- | :--- |
-| **Start with Windows** | **On** for installed copies | Launches NectarLink quietly in the Windows system tray when you sign in to your PC. |
-| **Stay in system tray** | **On** | Keeps NectarLink running in the system tray (unloading the UI window to ~5 to 10 MB working set) when you close the main window, so your phone stays connected. When turned off, closing the window quits the app completely. On a Mac the menu bar should show a NectarLink item with the same items, and Quit is one of them. On a Mac, closing the window keeps the app running in the menu bar. A click on the Dock icon opens the window again, and so does starting the app again. This is not tested on a Mac yet. A Mac that already saved this setting as off keeps it off, so turn it on here. |
+| **Start with Windows** | **On** for installed copies | Launches NectarLink quietly in the Windows system tray when you sign in to your PC. On Linux and on a Mac this setting is called **Start at login**. On a Mac it opens NectarLink when you sign in. It does not start hidden yet, so its window may open. |
+| **Stay in system tray** | **On** | On a Mac this setting is called **Stay in the menu bar**. Keeps NectarLink running in the system tray (unloading the UI window to ~5 to 10 MB working set) when you close the main window, so your phone stays connected. When turned off, closing the window quits the app completely. On a Mac the menu bar should show a NectarLink item with the same items, and Quit is one of them. On a Mac, closing the window keeps the app running in the menu bar. A click on the Dock icon opens the window again, and so does starting the app again. This is not tested on a Mac yet. A Mac that already saved this setting as off keeps it off, so turn it on here. |
 | **Nectar Island** | **Off** | Shows a compact pill at the top center of your primary monitor during active phone events. Automatically hides during full-screen games/videos or Windows Do Not Disturb. |
 | **Island triggers** *(shown when Nectar Island is On)* | **Calls**: On, **Transfers**: On, **Media**: On, **Alerts**: Off | Toggles which phone events expand `Nectar Island`: incoming/active **Calls**, active file **Transfers**, now-playing **Media**, and phone notification **Alerts** (including OTPs, timers, and recordings). |
 | **Battery alerts** | **On** | Shows a desktop notification when a connected phone's battery drops low or reaches a full charge. |
@@ -138,6 +138,8 @@ Configures File Explorer integration, PC folder sharing, LocalSend, voice record
 ### 7. Shortcuts & Rules
 
 Configures global Windows keyboard shortcuts and trigger-action automation rules.
+
+On a Mac, the boxes in this section still show and store the Windows words. The Command key is stored as `Ctrl`, the Option key as `Alt` and the Control key as `Win`. The global shortcuts do not work on a Mac yet. Inside the app, press Command+K to open the `Command Palette`. A Deck tile that presses a shortcut uses the real keys instead: on a Mac its Ctrl key is Control and its Win key is Command.
 
 | Setting | Default | What It Does |
 | :--- | :--- | :--- |

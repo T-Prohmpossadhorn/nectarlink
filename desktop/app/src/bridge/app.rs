@@ -254,6 +254,24 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setHotspotNetwork"]
         fn set_hotspot_network(self: &AppController, device: &QString, network: &QString);
+        /// A shortcut spec (`Ctrl+K`) as this system's keys name it, in the app's
+        /// language. `pressed` is true for keys the app presses itself (the Deck)
+        /// and false for a spec recorded from Qt key events. Windows and Linux get
+        /// the spec back as it is. See `key_names.rs`.
+        #[qinvokable]
+        #[cxx_name = "shortcutLabel"]
+        fn shortcut_label(self: &AppController, spec: &QString, pressed: bool) -> QString;
+        /// The modifier part of a recorded spec for the modifiers a Qt key event
+        /// held (`Ctrl+Alt`), or `""` for none. `ctrl` and `meta` are Qt's flags.
+        #[qinvokable]
+        #[cxx_name = "recordedModifiers"]
+        fn recorded_modifiers(
+            self: &AppController,
+            ctrl: bool,
+            alt: bool,
+            shift: bool,
+            meta: bool,
+        ) -> QString;
         #[qinvokable]
         fn set_device_toggle(self: Pin<&mut AppController>, device: &QString, name: &QString, on: bool);
         /// Latest quick settings toggles for a phone as JSON (`""` when unknown).
@@ -1713,6 +1731,17 @@ impl qobject::AppController {
         QString::from(
             &serde_json::to_string(&crate::win::wifi::saved_networks()).unwrap_or_else(|_| "[]".into()),
         )
+    }
+
+    pub fn shortcut_label(&self, spec: &QString, pressed: bool) -> QString {
+        use crate::key_names::{Source, shortcut_label};
+        let source = if pressed { Source::Pressed } else { Source::Recorded };
+        QString::from(&shortcut_label(&String::from(spec), source))
+    }
+
+    pub fn recorded_modifiers(&self, ctrl: bool, alt: bool, shift: bool, meta: bool) -> QString {
+        use crate::key_names::{Held, Os, recorded_modifiers};
+        QString::from(&recorded_modifiers(Os::current(), Held { ctrl, alt, shift, meta }))
     }
 
     pub fn hotspot_network(&self, device: &QString) -> QString {
