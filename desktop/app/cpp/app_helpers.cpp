@@ -34,6 +34,11 @@
 #endif
 
 #ifdef __APPLE__
+#include "native_window.h"
+
+#include <QtCore/QElapsedTimer>
+#include <QtGui/QStyleHints>
+#include <QtGui/QWindow>
 #include <crt_externs.h>
 #endif
 
@@ -664,6 +669,97 @@ void runOnQtMainThread(F &&fn)
     }
 }
 
+#ifdef __APPLE__
+// Like `pushTrayAction`, but not when the same text is already the last one
+// waiting. For events that Qt may send several times in a row.
+void pushTrayActionOnce(const char *action)
+{
+    auto &st = qtTray();
+    {
+        std::lock_guard<std::mutex> lock(st.mutex);
+        if (!st.actions.empty() && st.actions.back() == action)
+            return;
+        st.actions.emplace_back(action);
+    }
+    st.cv.notify_all();
+}
+
+// Whether a normal window (the main window, the setup window, a Mirror window
+// or a dialog) is open and not in the Dock. The Island, the Shelf, the laser
+// overlay and menus are Tool or popup windows and do not count: the Island can
+// stay open for hours, and it would stop the app from ever reopening. The
+// check is for the window type itself, not a bit test: `Qt::Tool` has the
+// `Qt::Window` bit set too.
+bool mainWindowShowing()
+{
+    const auto windows = QGuiApplication::topLevelWindows();
+    for (QWindow *window : windows) {
+        const Qt::WindowType type = window->type();
+        if ((type == Qt::Window || type == Qt::Dialog) && window->isVisible()
+            && window->visibility() != QWindow::Minimized) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Opens the main window when the user opens the app again while it has none.
+// Qt should report a click on the Dock icon, or the app started again from
+// Finder, Spotlight or Launchpad, as an activation of the app (the system
+// reopens the running app, and no second copy starts). That is not verified:
+// it is a hardware check in the pull request. It sends "OPEN", the same text
+// as the first menu item. It does nothing without a menu-bar item, so it
+// cannot open a window for an app that is shutting down, and it ignores the
+// activation of the app's own start. Any activation counts, so it also acts
+// when the user clicks another app window while no normal window is open.
+class ReopenWatcher : public QObject
+{
+public:
+    explicit ReopenWatcher(QObject *parent)
+        : QObject(parent)
+    {
+        quiet_.start();
+    }
+
+    void reopenIfNoWindow()
+    {
+        if (quiet_.elapsed() < kStartQuietMs)
+            return;
+        if (!qtTray().icon || mainWindowShowing())
+            return;
+        pushTrayActionOnce("OPEN");
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == QCoreApplication::instance() && event->type() == QEvent::ApplicationActivate)
+            reopenIfNoWindow();
+        return false;
+    }
+
+private:
+    static constexpr qint64 kStartQuietMs = 3000;
+    QElapsedTimer quiet_;
+};
+
+// Once, on the main thread.
+void installReopenWatcher()
+{
+    static bool installed = false;
+    QCoreApplication *app = QCoreApplication::instance();
+    if (installed || !app)
+        return;
+    installed = true;
+    auto *watcher = new ReopenWatcher(app);
+    app->installEventFilter(watcher);
+    QObject::connect(qGuiApp, &QGuiApplication::applicationStateChanged, watcher, [watcher](Qt::ApplicationState state) {
+        if (state == Qt::ApplicationActive)
+            watcher->reopenIfNoWindow();
+    });
+}
+#endif
+
 } // namespace
 #endif
 
@@ -891,6 +987,15 @@ void qt_tray_setup(
         });
 #endif
         tray->show();
+#ifdef __APPLE__
+        // The look of the system changed: the context is the tray item, so
+        // the connection ends with it. (Whether Qt reports the accent color
+        // too, or only light and dark, is a hardware check.)
+        QObject::connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, tray, []() {
+            pushTrayActionOnce("APPEARANCE_CHANGED");
+        });
+        installReopenWatcher();
+#endif
 
         st.icon = tray;
         st.menu = menu;
@@ -1003,9 +1108,14 @@ rust::String qt_tray_wait_action(uint32_t timeout_ms)
     return rust::String();
 }
 
-// Linux only. Nothing asks on macOS: the menu bar is always there.
+// Linux: whether a tray host exists. macOS: whether `qt_tray_setup` made the
+// menu-bar item (main thread only, otherwise false).
 bool qt_tray_is_available()
 {
+#ifdef __APPLE__
+    QCoreApplication *app = QCoreApplication::instance();
+    return app && QThread::currentThread() == app->thread() && !qtTray().icon.isNull();
+#else
 #ifdef __linux__
     bool available = false;
     if (runOnQtMainThreadSync([&available]() {
@@ -1015,6 +1125,7 @@ bool qt_tray_is_available()
     }
 #endif
     return false;
+#endif
 }
 
 bool linux_work_area(int32_t &x, int32_t &y, int32_t &w, int32_t &h)

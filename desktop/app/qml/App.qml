@@ -6,7 +6,8 @@ import app.nectarlink
 
 // Application root. The main window exists only while it's open: closing it
 // destroys it (freeing its GPU resources) and NectarLink keeps running in
-// the tray. A tray click, a second launch or a ringing request reopens it.
+// the tray (the menu bar on a Mac). A tray click, a second launch or a
+// ringing request reopens it. On a Mac, so does a click on the Dock icon.
 QtObject {
     id: app
 
@@ -131,7 +132,9 @@ QtObject {
     function onMainClosed() {
         if (mainLoader.active && mainLoader.item)
             mainLoader.item.saveWindowState()
-        if (Qt.platform.os === "osx" || !Preferences.closeToTray) {
+        // On a Mac a second launch is only an activation, so without the
+        // menu-bar item nothing could bring the window back: quit instead.
+        if (!Preferences.closeToTray || (Qt.platform.os === "osx" && !AppController.trayAvailable)) {
             Qt.quit()
             return
         }

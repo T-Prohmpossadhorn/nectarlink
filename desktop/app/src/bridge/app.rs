@@ -95,6 +95,9 @@ pub mod qobject {
         #[qproperty(QString, pc_mirror_prompt_device_name)]
         #[qproperty(bool, pc_mirror_active)]
         #[qproperty(QString, pc_mirror_device_name)]
+        /// Whether the tray icon (the menu-bar item on a Mac) was made. On a Mac
+        /// it is the only way back to a window that was closed.
+        #[qproperty(bool, tray_available)]
         /// Whether the presentation laser pointer overlay is showing, and its
         /// normalized position on the primary screen (`0.0..=1.0`).
         #[qproperty(bool, laser_active)]
@@ -455,6 +458,7 @@ pub struct AppControllerRust {
     pc_mirror_prompt_device_name: QString,
     pc_mirror_active: bool,
     pc_mirror_device_name: QString,
+    tray_available: bool,
     laser_active: bool,
     laser_x: f32,
     laser_y: f32,
@@ -866,7 +870,10 @@ impl cxx_qt::Initialize for qobject::AppController {
             quit: tr!("App", "Quit NectarLink"),
         };
         match tray::Tray::create("NectarLink", labels, move |event| on_tray_event(&qt, event)) {
-            Ok(tray) => self.rust_mut().tray = Some(tray),
+            Ok(tray) => {
+                self.as_mut().rust_mut().tray = Some(tray);
+                self.as_mut().set_tray_available(true);
+            }
             Err(e) => tracing::warn!(error = %e, "no tray icon"),
         }
     }

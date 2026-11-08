@@ -118,10 +118,6 @@ fn default_true() -> bool {
     true
 }
 
-fn default_close_to_tray() -> bool {
-    !cfg!(target_os = "macos")
-}
-
 fn default_webcam_camera() -> String {
     "back".to_owned()
 }
@@ -419,7 +415,7 @@ pub struct Settings {
     #[serde(default = "default_true", alias = "comb_motion")]
     pub comb_motion: bool,
     /// Closing the window keeps NectarLink running in the tray.
-    #[serde(default = "default_close_to_tray", alias = "close_to_tray")]
+    #[serde(default = "default_true", alias = "close_to_tray")]
     pub close_to_tray: bool,
     /// Send what's copied on this PC to connected phones.
     #[serde(alias = "auto_clipboard", alias = "clipboard_sync")]
@@ -658,7 +654,7 @@ impl Default for Settings {
             amoled: false,
             backdrop: true,
             comb_motion: true,
-            close_to_tray: default_close_to_tray(),
+            close_to_tray: true,
             auto_clipboard: true,
             clipboard_history: true,
             suggest_clipboard_actions: true,
@@ -748,10 +744,6 @@ impl Settings {
         if self.window_x.is_none() || self.window_y.is_none() {
             self.window_x = None;
             self.window_y = None;
-        }
-        #[cfg(target_os = "macos")]
-        {
-            self.close_to_tray = false;
         }
         self
     }
@@ -887,6 +879,20 @@ mod tests {
         assert!(!answered.ask_for_star_after_update());
         assert!(!answered.star_prompt_updated);
         assert!(answered.star_prompt_done);
+    }
+
+    #[test]
+    fn the_app_stays_in_the_tray_unless_the_user_turned_it_off() {
+        // The same on every system, the Mac included.
+        assert!(Settings::default().close_to_tray);
+        assert!(Settings::default().sanitized().close_to_tray);
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(FILE_NAME), "{}").unwrap();
+        assert!(Settings::load(dir.path()).close_to_tray, "a missing value means on");
+        fs::write(dir.path().join(FILE_NAME), r#"{ "closeToTray": false }"#).unwrap();
+        assert!(!Settings::load(dir.path()).close_to_tray, "a saved off stays off");
+        fs::write(dir.path().join(FILE_NAME), r#"{ "closeToTray": true }"#).unwrap();
+        assert!(Settings::load(dir.path()).close_to_tray);
     }
 
     #[cfg(unix)]

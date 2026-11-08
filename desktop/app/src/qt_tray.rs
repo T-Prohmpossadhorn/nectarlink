@@ -31,6 +31,7 @@ pub(crate) fn parse_tray_helper_action(line: &str) -> Option<TrayEvent> {
         "OPEN_LINK" => Some(TrayEvent::OpenLinkOnPhone),
         "PAUSE_NOTIFICATIONS" => Some(TrayEvent::ToggleNotificationsPause),
         "QUIT" => Some(TrayEvent::Quit),
+        "APPEARANCE_CHANGED" => Some(TrayEvent::AppearanceChanged),
         _ => None,
     }
 }
@@ -90,11 +91,12 @@ mod tests {
             Some(TrayEvent::ToggleNotificationsPause)
         );
         assert_eq!(parse_tray_helper_action("  QUIT \r\n"), Some(TrayEvent::Quit));
+        assert_eq!(parse_tray_helper_action("APPEARANCE_CHANGED"), Some(TrayEvent::AppearanceChanged));
     }
 
     #[test]
     fn parse_tray_helper_action_ignores_anything_else() {
-        for line in ["", "   ", "UNKNOWN", "open", "Quit", "OPEN QUIT", "RESUMED", "APPEARANCE_CHANGED"] {
+        for line in ["", "   ", "UNKNOWN", "open", "Quit", "OPEN QUIT", "RESUMED", "appearance_changed"] {
             assert_eq!(parse_tray_helper_action(line), None, "{line:?}");
         }
     }
