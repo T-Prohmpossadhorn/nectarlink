@@ -68,6 +68,21 @@ struct State {
     next_keystroke: Option<Instant>,
 }
 
+impl State {
+    /// Forgets everything that a remote person could have left half done: the
+    /// held buttons (returned, so the caller can release them), the leftover
+    /// fractions of moves and scrolls, and the click chain. The typing pause
+    /// stays, because it only spaces keys and holds nothing down.
+    fn release_all(&mut self) -> [bool; 3] {
+        let held = self.held;
+        self.held = [false; 3];
+        self.move_rem = (0.0, 0.0);
+        self.scroll_rem = (0.0, 0.0);
+        self.last_click = None;
+        held
+    }
+}
+
 struct LastClick {
     at: Instant,
     button: usize,
@@ -225,14 +240,7 @@ fn click_count(s: &mut State, button: usize, point: cg::Point) -> i64 {
 
 /// Releases any mouse buttons still held down by remote input.
 pub fn release_held_buttons() {
-    let held = {
-        let mut s = state();
-        let held = s.held;
-        s.held = [false; 3];
-        s.move_rem = (0.0, 0.0);
-        s.scroll_rem = (0.0, 0.0);
-        held
-    };
+    let held = state().release_all();
     let Some(at) = cg::cursor() else { return };
     for (index, _) in held.iter().enumerate().filter(|(_, h)| **h) {
         cg::post_mouse_button(index, false, at, 1);
@@ -566,6 +574,24 @@ mod tests {
         let back = cg::cursor().unwrap();
         assert_eq!((moved.x - start.x, moved.y - start.y), (-30.0, -20.0));
         assert_eq!((back.x, back.y), (start.x, start.y));
+    }
+
+    #[test]
+    fn releasing_clears_every_held_state() {
+        let mut s = State {
+            held: [true, false, true],
+            move_rem: (0.4, -0.3),
+            scroll_rem: (0.2, 0.7),
+            ..State::default()
+        };
+        click_count(&mut s, 0, cg::Point { x: 1.0, y: 1.0 });
+        assert_eq!(s.release_all(), [true, false, true]);
+        assert_eq!(s.held, [false; 3]);
+        assert_eq!(s.move_rem, (0.0, 0.0));
+        assert_eq!(s.scroll_rem, (0.0, 0.0));
+        assert!(s.last_click.is_none());
+        // A second call finds nothing to release.
+        assert_eq!(s.release_all(), [false; 3]);
     }
 
     #[test]

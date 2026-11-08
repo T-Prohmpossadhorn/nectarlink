@@ -56,6 +56,7 @@ unsafe extern "C" {
     safe fn CGDisplayBounds(display: u32) -> RawRect;
     fn CGGetActiveDisplayList(max_displays: u32, displays: *mut u32, count: *mut u32) -> i32;
     fn CGEventSourceCreate(state_id: i32) -> SourceRef;
+    fn CGEventSourceSetLocalEventsSuppressionInterval(source: SourceRef, seconds: f64);
     fn CGEventCreate(source: SourceRef) -> EventRef;
     fn CGEventGetLocation(event: EventRef) -> Point;
     fn CGEventCreateMouseEvent(source: SourceRef, kind: u32, position: Point, button: u32) -> EventRef;
@@ -127,13 +128,32 @@ impl Drop for Event {
     }
 }
 
+/// How long the system may hold back the real keyboard and mouse after the app
+/// posts an event. CGEventSource.h says the default is 0.25 seconds, and that
+/// `CGEventSourceSetLocalEventsSuppressionInterval` sets the time in seconds
+/// that local hardware events may be suppressed after an event made with the
+/// source is posted. With 0, a person who moves the real mouse is not frozen
+/// after each posted event.
+const LOCAL_EVENTS_SUPPRESSION_SECONDS: f64 = 0.0;
+
 /// The event source for posted events, made once. A null pointer (the source
-/// could not be made) is allowed everywhere it is used.
+/// could not be made) is allowed everywhere it is used, and then the system
+/// keeps its default suppression interval.
 fn source() -> SourceRef {
     static SOURCE: OnceLock<usize> = OnceLock::new();
-    // SAFETY: the source is kept for the life of the process, and CoreGraphics
-    // may use it from any thread.
-    *SOURCE.get_or_init(|| unsafe { CGEventSourceCreate(SOURCE_HID_SYSTEM_STATE) } as usize) as SourceRef
+    *SOURCE.get_or_init(|| {
+        // SAFETY: `CGEventSourceCreate` has no pointer arguments.
+        let source = unsafe { CGEventSourceCreate(SOURCE_HID_SYSTEM_STATE) };
+        if !source.is_null() {
+            // SAFETY: `source` is the live source that was just made, and it is
+            // kept for the life of the process. CoreGraphics may use it from any
+            // thread.
+            unsafe {
+                CGEventSourceSetLocalEventsSuppressionInterval(source, LOCAL_EVENTS_SUPPRESSION_SECONDS);
+            }
+        }
+        source as usize
+    }) as SourceRef
 }
 
 pub fn post_access() -> bool {
