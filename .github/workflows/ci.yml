@@ -244,8 +244,19 @@ jobs:
           arch: clang_64
           cache: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git
-      - name: Release build
-        run: cargo build --locked --release -p nectarlink-desktop
+      - name: Add the Intel target
+        run: rustup target add x86_64-apple-darwin
+      - name: Release build (Apple Silicon and Intel)
+        run: |
+          cargo build --locked --release -p nectarlink-desktop --target aarch64-apple-darwin
+          cargo build --locked --release -p nectarlink-desktop --target x86_64-apple-darwin
+      - name: Bundle NectarLink.app
+        run: ARCH=universal ./desktop/packaging/macos/build-app.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nectarlink-macos-universal
+          path: dist/*.zip
+          retention-days: 14
 
   desktop-linux:
     name: Linux app (x64)
