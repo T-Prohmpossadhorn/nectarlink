@@ -12,6 +12,9 @@ change things that need a step from you, and its notes say so.
   the Windows PC, every screen is translated. Settings › Appearance › Language
   picks it, or the system language does. Thanks to
   [@wuwenhou](https://github.com/wuwenhou).
+- **Mac finds your phone again after a network change.** On a Mac, NectarLink now notices
+  when you switch Wi-Fi, plug in a cable or start a VPN, and tries to reconnect to paired
+  phones.
 - **More ways to sync a folder.** A synced folder can now go one way from the PC to the
   phone. Phone to PC can also remove from the PC what you delete on the phone: only
   files it synced and that haven't changed on the PC, and they go to the Recycle Bin. Both
