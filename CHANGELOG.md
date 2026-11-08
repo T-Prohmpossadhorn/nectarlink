@@ -16,7 +16,14 @@ change things that need a step from you, and its notes say so.
   items as the tray on Windows and Linux: Open, Command palette, Shelf, the phone actions,
   pause or resume for phone notifications, and Quit. The picture should follow the color of
   the menu bar. Its tooltip shows how many phones are connected, or the battery of the one
-  that is, and never a phone name. Closing the window still quits the app on a Mac. This is
+  that is, and never a phone name. This is not tested on a Mac yet.
+- **Mac keeps running in the menu bar.** Closing the window should now leave NectarLink running
+  in the menu bar, as on Windows and Linux, so your phone stays connected. A click on the Dock
+  icon should open the window again. So should starting the app again. Quit in the menu bar
+  menu still quits the app. A Mac that saved "Stay in system tray" as off keeps it off: turn it
+  on in Settings. This is not tested on a Mac yet.
+- **Mac reconnects after sleep.** When the Mac wakes up, NectarLink should look for your paired
+  phones again. It should also notice when the system changes between light and dark. This is
   not tested on a Mac yet.
 - **Mac finds your phone again after a network change.** On a Mac, NectarLink now notices
   when you switch Wi-Fi, plug in a cable or start a VPN, and tries to reconnect to paired

@@ -34,6 +34,11 @@
 #endif
 
 #ifdef __APPLE__
+#include "native_window.h"
+
+#include <QtCore/QElapsedTimer>
+#include <QtGui/QStyleHints>
+#include <QtGui/QWindow>
 #include <crt_externs.h>
 #endif
 
@@ -664,6 +669,88 @@ void runOnQtMainThread(F &&fn)
     }
 }
 
+#ifdef __APPLE__
+// Like `pushTrayAction`, but not when the same text is already the last one
+// waiting. For events that Qt may send several times in a row.
+void pushTrayActionOnce(const char *action)
+{
+    auto &st = qtTray();
+    {
+        std::lock_guard<std::mutex> lock(st.mutex);
+        if (!st.actions.empty() && st.actions.back() == action)
+            return;
+        st.actions.emplace_back(action);
+    }
+    st.cv.notify_all();
+}
+
+// Whether a main window (or the setup window) is open and not in the Dock.
+bool mainWindowShowing()
+{
+    const auto windows = QGuiApplication::topLevelWindows();
+    for (QWindow *window : windows) {
+        if (qobject_cast<NativeWindow *>(window) && window->isVisible()
+            && window->visibility() != QWindow::Minimized) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Opens the main window when the user opens the app again while it has none:
+// a click on the Dock icon, or the app started again from Finder, Spotlight or
+// Launchpad (the system reopens the running app, and no second copy starts).
+// It sends "OPEN", the same text as the first menu item. It does nothing
+// without a menu-bar item, so it cannot open a window for an app that is
+// shutting down, and it ignores the activation of the app's own start.
+class ReopenWatcher : public QObject
+{
+public:
+    explicit ReopenWatcher(QObject *parent)
+        : QObject(parent)
+    {
+        quiet_.start();
+    }
+
+    void reopenIfNoWindow()
+    {
+        if (quiet_.elapsed() < kStartQuietMs)
+            return;
+        if (!qtTray().icon || mainWindowShowing())
+            return;
+        pushTrayActionOnce("OPEN");
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == QCoreApplication::instance() && event->type() == QEvent::ApplicationActivate)
+            reopenIfNoWindow();
+        return false;
+    }
+
+private:
+    static constexpr qint64 kStartQuietMs = 3000;
+    QElapsedTimer quiet_;
+};
+
+// Once, on the main thread.
+void installReopenWatcher()
+{
+    static bool installed = false;
+    QCoreApplication *app = QCoreApplication::instance();
+    if (installed || !app)
+        return;
+    installed = true;
+    auto *watcher = new ReopenWatcher(app);
+    app->installEventFilter(watcher);
+    QObject::connect(qGuiApp, &QGuiApplication::applicationStateChanged, watcher, [watcher](Qt::ApplicationState state) {
+        if (state == Qt::ApplicationActive)
+            watcher->reopenIfNoWindow();
+    });
+}
+#endif
+
 } // namespace
 #endif
 
@@ -891,6 +978,15 @@ void qt_tray_setup(
         });
 #endif
         tray->show();
+#ifdef __APPLE__
+        // The look of the system changed: the context is the tray item, so
+        // the connection ends with it. (Whether Qt reports the accent color
+        // too, or only light and dark, is a hardware check.)
+        QObject::connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, tray, []() {
+            pushTrayActionOnce("APPEARANCE_CHANGED");
+        });
+        installReopenWatcher();
+#endif
 
         st.icon = tray;
         st.menu = menu;

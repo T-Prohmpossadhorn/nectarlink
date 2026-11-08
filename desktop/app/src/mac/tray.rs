@@ -10,7 +10,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use crate::{bridge::native::ffi, mark};
+use crate::{bridge::native::ffi, mark, win::power::PowerWatcher};
 
 /// What the user or the system asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,11 +25,9 @@ pub enum TrayEvent {
     OpenLinkOnPhone,
     ToggleNotificationsPause,
     Quit,
-    /// The Mac woke from sleep. Nothing sends this yet.
-    #[allow(dead_code)]
+    /// The Mac woke from sleep (`mac/power.rs`).
     Resumed,
-    /// The look of the system changed. Nothing sends this yet.
-    #[allow(dead_code)]
+    /// The look of the system changed (Qt's color scheme).
     AppearanceChanged,
 }
 
@@ -54,11 +52,14 @@ const ICON_PX: usize = 36;
 
 /// The menu-bar item and its menu: a Qt `QSystemTrayIcon` (see
 /// `cpp/app_helpers.cpp`, `qt_tray_*`). A click opens the menu, whose first
-/// item is Open.
+/// item is Open. It also reports a wake from sleep, a change of the system's
+/// look, and the app being opened again while it has no window.
 pub struct Tray {
     labels: MenuLabels,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+    /// Stopped first when the tray goes (see `Drop`).
+    power: Option<PowerWatcher>,
 }
 
 impl Tray {
@@ -69,6 +70,8 @@ impl Tray {
     ) -> Result<Tray, String> {
         let stop = Arc::new(AtomicBool::new(false));
         let mut thread = None;
+        let mut power = None;
+        let handler = Arc::new(handler);
         if !cfg!(test) {
             ffi::qt_tray_set_mask_icon(ICON_PX as i32, &mark::render_glyph(ICON_PX));
             ffi::qt_tray_setup(
@@ -84,14 +87,18 @@ impl Tray {
                 &labels.pause_notifications,
                 &labels.quit,
             );
-            thread = crate::qt_tray::spawn_action_thread(Arc::clone(&stop), handler);
+            let menu_handler = Arc::clone(&handler);
+            thread = crate::qt_tray::spawn_action_thread(Arc::clone(&stop), move |event| menu_handler(event));
             if thread.is_none() {
                 // A menu nobody listens to could not even quit the app.
                 ffi::qt_tray_teardown();
                 return Err("could not start the menu-bar thread".into());
             }
+            // Without it the app still works, only a wake is not noticed.
+            let wake_handler = Arc::clone(&handler);
+            power = PowerWatcher::start(move || wake_handler(TrayEvent::Resumed));
         }
-        Ok(Tray { labels, stop, thread })
+        Ok(Tray { labels, stop, thread, power })
     }
 
     pub fn set_tooltip(&self, text: &str) {
@@ -118,6 +125,8 @@ impl Tray {
 impl Drop for Tray {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+        // Waits for the thread, so no wake event comes after this.
+        drop(self.power.take());
         if !cfg!(test) {
             ffi::qt_tray_teardown();
         }
