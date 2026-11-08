@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Phone as Speaker / Headphones for PC Audio (§3.8 P2): captures Windows
-//! system audio via WASAPI loopback (`AUDCLNT_STREAMFLAGS_LOOPBACK`), converts
-//! 32-bit float stereo samples to 16-bit signed little-endian PCM, and streams
-//! them to connected phones over NectarLink's low-latency audio stream.
+//! Phone as Speaker / Headphones for PC Audio (§3.8 P2): captures the PC's
+//! system audio, converts it to 16-bit signed little-endian PCM, and streams
+//! it to connected phones over NectarLink's low-latency audio stream.
+//!
+//! Windows captures with WASAPI loopback (`AUDCLNT_STREAMFLAGS_LOOPBACK`) and
+//! Linux reads the default sink's monitor with `parec` or `pw-record`. A Mac
+//! does not capture yet: only the pure helpers (the speaker tuning and the
+//! sample conversion) are shared with it, ahead of that work.
 
 /// Where the PC's sound goes: only to the phone that asked for it, waiting
 /// while it's away (never to another phone, which may be someone else's), or
@@ -18,9 +22,163 @@ fn pick_target(
     }
 }
 
+/// Converts interleaved stereo `f32` samples (`[-1.0, 1.0]`) into 16-bit
+/// signed little-endian PCM bytes (`pcm_s16le`).
+#[cfg(test)]
+pub(crate) fn f32_stereo_to_i16le(samples: &[f32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(samples.len() * 2);
+    for &sample in samples {
+        let clean = if sample.is_finite() { sample.clamp(-1.0, 1.0) } else { 0.0 };
+        let scaled = (clean * 32767.0).round() as i16;
+        out.extend_from_slice(&scaled.to_le_bytes());
+    }
+    out
+}
+
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+#[derive(Clone, Copy)]
+struct Biquad {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+    z1_l: f32,
+    z2_l: f32,
+    z1_r: f32,
+    z2_r: f32,
+}
+
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+impl Biquad {
+    fn low_shelf(sample_rate: f32, freq: f32, gain_db: f32) -> Self {
+        let a = 10.0_f32.powf(gain_db / 40.0);
+        let w0 = 2.0 * std::f32::consts::PI * (freq / sample_rate.max(8_000.0)).clamp(0.001, 0.45);
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / 2.0 * std::f32::consts::SQRT_2;
+        let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+
+        let b0 = a * ((a + 1.0) - (a - 1.0) * cos_w0 + two_sqrt_a_alpha);
+        let b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos_w0);
+        let b2 = a * ((a + 1.0) - (a - 1.0) * cos_w0 - two_sqrt_a_alpha);
+        let a0 = (a + 1.0) + (a - 1.0) * cos_w0 + two_sqrt_a_alpha;
+        let a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos_w0);
+        let a2 = (a + 1.0) + (a - 1.0) * cos_w0 - two_sqrt_a_alpha;
+
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+            z1_l: 0.0,
+            z2_l: 0.0,
+            z1_r: 0.0,
+            z2_r: 0.0,
+        }
+    }
+
+    fn high_shelf(sample_rate: f32, freq: f32, gain_db: f32) -> Self {
+        let a = 10.0_f32.powf(gain_db / 40.0);
+        let w0 = 2.0 * std::f32::consts::PI * (freq / sample_rate.max(8_000.0)).clamp(0.001, 0.45);
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / 2.0 * std::f32::consts::SQRT_2;
+        let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+
+        let b0 = a * ((a + 1.0) + (a - 1.0) * cos_w0 + two_sqrt_a_alpha);
+        let b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos_w0);
+        let b2 = a * ((a + 1.0) + (a - 1.0) * cos_w0 - two_sqrt_a_alpha);
+        let a0 = (a + 1.0) - (a - 1.0) * cos_w0 + two_sqrt_a_alpha;
+        let a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos_w0);
+        let a2 = (a + 1.0) - (a - 1.0) * cos_w0 - two_sqrt_a_alpha;
+
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+            z1_l: 0.0,
+            z2_l: 0.0,
+            z1_r: 0.0,
+            z2_r: 0.0,
+        }
+    }
+
+    #[inline]
+    fn process_stereo(&mut self, l: f32, r: f32) -> (f32, f32) {
+        let out_l = self.b0 * l + self.z1_l;
+        self.z1_l = self.b1 * l - self.a1 * out_l + self.z2_l;
+        self.z2_l = self.b2 * l - self.a2 * out_l;
+
+        let out_r = self.b0 * r + self.z1_r;
+        self.z1_r = self.b1 * r - self.a1 * out_r + self.z2_r;
+        self.z2_r = self.b2 * r - self.a2 * out_r;
+        (out_l, out_r)
+    }
+}
+
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+struct SpeakerEnhancer {
+    low_shelf: Biquad,
+    high_shelf: Biquad,
+}
+
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+impl SpeakerEnhancer {
+    fn new(sample_rate: u32) -> Self {
+        let sr = sample_rate as f32;
+        Self { low_shelf: Biquad::low_shelf(sr, 155.0, 3.5), high_shelf: Biquad::high_shelf(sr, 3800.0, 1.5) }
+    }
+
+    #[inline]
+    fn soft_limit(x: f32) -> f32 {
+        if !x.is_finite() {
+            return 0.0;
+        }
+        let boosted = x * 1.12;
+        (boosted / (1.0 + 0.18 * boosted.abs())).clamp(-1.0, 1.0)
+    }
+
+    fn encode_stereo_f32(&mut self, floats: &[f32], channels: usize) -> Vec<u8> {
+        let frames = floats.len() / channels.max(1);
+        let mut out = Vec::with_capacity(frames * 4);
+        for frame in floats.chunks_exact(channels.max(1)) {
+            let l_in = if frame[0].is_finite() { frame[0] } else { 0.0 };
+            let r_in = if channels > 1 && frame[1].is_finite() { frame[1] } else { l_in };
+            let (l1, r1) = self.low_shelf.process_stereo(l_in, r_in);
+            let (l2, r2) = self.high_shelf.process_stereo(l1, r1);
+            let l_i16 = (Self::soft_limit(l2) * 32767.0).round() as i16;
+            let r_i16 = (Self::soft_limit(r2) * 32767.0).round() as i16;
+            out.extend_from_slice(&l_i16.to_le_bytes());
+            out.extend_from_slice(&r_i16.to_le_bytes());
+        }
+        out
+    }
+
+    #[cfg_attr(not(windows), allow(dead_code))]
+    fn encode_stereo_i16(&mut self, samples: &[i16], channels: usize) -> Vec<u8> {
+        let frames = samples.len() / channels.max(1);
+        let mut out = Vec::with_capacity(frames * 4);
+        for frame in samples.chunks_exact(channels.max(1)) {
+            let l_in = (frame[0] as f32) / 32768.0;
+            let r_in = if channels > 1 { (frame[1] as f32) / 32768.0 } else { l_in };
+            let (l1, r1) = self.low_shelf.process_stereo(l_in, r_in);
+            let (l2, r2) = self.high_shelf.process_stereo(l1, r1);
+            let l_i16 = (Self::soft_limit(l2) * 32767.0).round() as i16;
+            let r_i16 = (Self::soft_limit(r2) * 32767.0).round() as i16;
+            out.extend_from_slice(&l_i16.to_le_bytes());
+            out.extend_from_slice(&r_i16.to_le_bytes());
+        }
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::pick_target;
+    use super::{SpeakerEnhancer, f32_stereo_to_i16le, pick_target};
     use nectarlink_core::DeviceId;
 
     #[test]
@@ -30,6 +188,78 @@ mod tests {
         assert_eq!(pick_target(Some(a), &[b]), None);
         assert_eq!(pick_target(None, &[b, a]), Some(b));
         assert_eq!(pick_target(None, &[]), None);
+    }
+
+    #[test]
+    fn f32_stereo_to_i16le_clamps_and_encodes_little_endian() {
+        let samples = [0.0_f32, 1.0, -1.0, 2.5, -3.0, f32::NAN];
+        let bytes = f32_stereo_to_i16le(&samples);
+        assert_eq!(bytes.len(), samples.len() * 2);
+        let decoded: Vec<i16> = bytes.as_chunks::<2>().0.iter().map(|&c| i16::from_le_bytes(c)).collect();
+        assert_eq!(decoded, vec![0, 32767, -32767, 32767, -32767, 0]);
+    }
+
+    #[test]
+    fn speaker_enhancer_encodes_stereo_f32_and_i16_without_clipping() {
+        let mut enhancer = SpeakerEnhancer::new(48_000);
+        let floats = [0.25_f32, -0.25, 0.95, -0.95, f32::NAN, 0.5];
+        let encoded = enhancer.encode_stereo_f32(&floats, 2);
+        assert_eq!(encoded.len(), 3 * 4);
+        assert!(encoded.iter().any(|&b| b != 0));
+
+        let i16s = [8000i16, -8000, 16000, -16000];
+        let encoded_i16 = enhancer.encode_stereo_i16(&i16s, 2);
+        assert_eq!(encoded_i16.len(), 2 * 4);
+        assert!(encoded_i16.iter().any(|&b| b != 0));
+    }
+
+    fn decode(bytes: &[u8]) -> Vec<i16> {
+        bytes.as_chunks::<2>().0.iter().map(|&c| i16::from_le_bytes(c)).collect()
+    }
+
+    #[test]
+    fn the_soft_limit_stays_inside_full_scale_and_drops_bad_samples() {
+        assert_eq!(SpeakerEnhancer::soft_limit(f32::NAN), 0.0);
+        assert_eq!(SpeakerEnhancer::soft_limit(f32::INFINITY), 0.0);
+        assert_eq!(SpeakerEnhancer::soft_limit(0.0), 0.0);
+        for x in [0.1_f32, 0.5, 1.0, 4.0, 1000.0] {
+            let up = SpeakerEnhancer::soft_limit(x);
+            assert!((0.0..=1.0).contains(&up), "{x} gave {up}");
+            assert_eq!(SpeakerEnhancer::soft_limit(-x), -up, "the curve is odd");
+        }
+        assert!(SpeakerEnhancer::soft_limit(0.2) < SpeakerEnhancer::soft_limit(0.8), "louder stays louder");
+    }
+
+    #[test]
+    fn a_mono_source_is_copied_to_both_ears_and_a_partial_frame_is_dropped() {
+        let mut enhancer = SpeakerEnhancer::new(48_000);
+        let mono = decode(&enhancer.encode_stereo_f32(&[0.5, 0.25, -0.5], 1));
+        assert_eq!(mono.len(), 6, "three mono frames make three stereo frames");
+        assert!(mono.chunks(2).all(|frame| frame[0] == frame[1]));
+
+        let mut enhancer = SpeakerEnhancer::new(48_000);
+        let mono_i16 = decode(&enhancer.encode_stereo_i16(&[4000, -4000], 1));
+        assert_eq!(mono_i16.len(), 4);
+        assert!(mono_i16.chunks(2).all(|frame| frame[0] == frame[1]));
+
+        // Five samples are two whole stereo frames and a leftover.
+        let mut enhancer = SpeakerEnhancer::new(48_000);
+        assert_eq!(enhancer.encode_stereo_f32(&[0.1; 5], 2).len(), 2 * 4);
+        assert!(enhancer.encode_stereo_f32(&[], 2).is_empty());
+    }
+
+    #[test]
+    fn extra_channels_are_ignored_and_a_bad_right_channel_follows_the_left() {
+        let mut enhancer = SpeakerEnhancer::new(48_000);
+        // Four channels per frame: only the first two are used.
+        assert_eq!(enhancer.encode_stereo_f32(&[0.3, -0.3, 0.9, 0.9], 4).len(), 4);
+        // A right sample that is not a number is replaced by the left one.
+        let mut a = SpeakerEnhancer::new(48_000);
+        let mut b = SpeakerEnhancer::new(48_000);
+        let fixed = decode(&a.encode_stereo_f32(&[0.4, f32::NAN], 2));
+        let same = decode(&b.encode_stereo_f32(&[0.4, 0.4], 2));
+        assert_eq!(fixed, same);
+        assert_eq!(fixed[0], fixed[1]);
     }
 }
 
@@ -56,6 +286,7 @@ mod imp {
         },
     };
 
+    use super::SpeakerEnhancer;
     use crate::core_host;
 
     static ENABLED: AtomicBool = AtomicBool::new(false);
@@ -84,159 +315,6 @@ mod imp {
         let prev = ENABLED.swap(enabled, Ordering::SeqCst);
         if enabled && !prev && core_host::node().is_some() {
             ensure_worker();
-        }
-    }
-
-    /// Converts interleaved stereo `f32` samples (`[-1.0, 1.0]`) into 16-bit
-    /// signed little-endian PCM bytes (`pcm_s16le`).
-    #[cfg(test)]
-    pub fn f32_stereo_to_i16le(samples: &[f32]) -> Vec<u8> {
-        let mut out = Vec::with_capacity(samples.len() * 2);
-        for &sample in samples {
-            let clean = if sample.is_finite() { sample.clamp(-1.0, 1.0) } else { 0.0 };
-            let scaled = (clean * 32767.0).round() as i16;
-            out.extend_from_slice(&scaled.to_le_bytes());
-        }
-        out
-    }
-
-    #[derive(Clone, Copy)]
-    struct Biquad {
-        b0: f32,
-        b1: f32,
-        b2: f32,
-        a1: f32,
-        a2: f32,
-        z1_l: f32,
-        z2_l: f32,
-        z1_r: f32,
-        z2_r: f32,
-    }
-
-    impl Biquad {
-        fn low_shelf(sample_rate: f32, freq: f32, gain_db: f32) -> Self {
-            let a = 10.0_f32.powf(gain_db / 40.0);
-            let w0 = 2.0 * std::f32::consts::PI * (freq / sample_rate.max(8_000.0)).clamp(0.001, 0.45);
-            let cos_w0 = w0.cos();
-            let sin_w0 = w0.sin();
-            let alpha = sin_w0 / 2.0 * std::f32::consts::SQRT_2;
-            let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
-
-            let b0 = a * ((a + 1.0) - (a - 1.0) * cos_w0 + two_sqrt_a_alpha);
-            let b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos_w0);
-            let b2 = a * ((a + 1.0) - (a - 1.0) * cos_w0 - two_sqrt_a_alpha);
-            let a0 = (a + 1.0) + (a - 1.0) * cos_w0 + two_sqrt_a_alpha;
-            let a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos_w0);
-            let a2 = (a + 1.0) + (a - 1.0) * cos_w0 - two_sqrt_a_alpha;
-
-            Self {
-                b0: b0 / a0,
-                b1: b1 / a0,
-                b2: b2 / a0,
-                a1: a1 / a0,
-                a2: a2 / a0,
-                z1_l: 0.0,
-                z2_l: 0.0,
-                z1_r: 0.0,
-                z2_r: 0.0,
-            }
-        }
-
-        fn high_shelf(sample_rate: f32, freq: f32, gain_db: f32) -> Self {
-            let a = 10.0_f32.powf(gain_db / 40.0);
-            let w0 = 2.0 * std::f32::consts::PI * (freq / sample_rate.max(8_000.0)).clamp(0.001, 0.45);
-            let cos_w0 = w0.cos();
-            let sin_w0 = w0.sin();
-            let alpha = sin_w0 / 2.0 * std::f32::consts::SQRT_2;
-            let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
-
-            let b0 = a * ((a + 1.0) + (a - 1.0) * cos_w0 + two_sqrt_a_alpha);
-            let b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos_w0);
-            let b2 = a * ((a + 1.0) + (a - 1.0) * cos_w0 - two_sqrt_a_alpha);
-            let a0 = (a + 1.0) - (a - 1.0) * cos_w0 + two_sqrt_a_alpha;
-            let a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos_w0);
-            let a2 = (a + 1.0) - (a - 1.0) * cos_w0 - two_sqrt_a_alpha;
-
-            Self {
-                b0: b0 / a0,
-                b1: b1 / a0,
-                b2: b2 / a0,
-                a1: a1 / a0,
-                a2: a2 / a0,
-                z1_l: 0.0,
-                z2_l: 0.0,
-                z1_r: 0.0,
-                z2_r: 0.0,
-            }
-        }
-
-        #[inline]
-        fn process_stereo(&mut self, l: f32, r: f32) -> (f32, f32) {
-            let out_l = self.b0 * l + self.z1_l;
-            self.z1_l = self.b1 * l - self.a1 * out_l + self.z2_l;
-            self.z2_l = self.b2 * l - self.a2 * out_l;
-
-            let out_r = self.b0 * r + self.z1_r;
-            self.z1_r = self.b1 * r - self.a1 * out_r + self.z2_r;
-            self.z2_r = self.b2 * r - self.a2 * out_r;
-            (out_l, out_r)
-        }
-    }
-
-    struct SpeakerEnhancer {
-        low_shelf: Biquad,
-        high_shelf: Biquad,
-    }
-
-    impl SpeakerEnhancer {
-        fn new(sample_rate: u32) -> Self {
-            let sr = sample_rate as f32;
-            Self {
-                low_shelf: Biquad::low_shelf(sr, 155.0, 3.5),
-                high_shelf: Biquad::high_shelf(sr, 3800.0, 1.5),
-            }
-        }
-
-        #[inline]
-        fn soft_limit(x: f32) -> f32 {
-            if !x.is_finite() {
-                return 0.0;
-            }
-            let boosted = x * 1.12;
-            (boosted / (1.0 + 0.18 * boosted.abs())).clamp(-1.0, 1.0)
-        }
-
-        fn encode_stereo_f32(&mut self, floats: &[f32], channels: usize) -> Vec<u8> {
-            let frames = floats.len() / channels.max(1);
-            let mut out = Vec::with_capacity(frames * 4);
-            for frame in floats.chunks_exact(channels.max(1)) {
-                let l_in = if frame[0].is_finite() { frame[0] } else { 0.0 };
-                let r_in = if channels > 1 && frame[1].is_finite() { frame[1] } else { l_in };
-                let (l1, r1) = self.low_shelf.process_stereo(l_in, r_in);
-                let (l2, r2) = self.high_shelf.process_stereo(l1, r1);
-                let l_i16 = (Self::soft_limit(l2) * 32767.0).round() as i16;
-                let r_i16 = (Self::soft_limit(r2) * 32767.0).round() as i16;
-                out.extend_from_slice(&l_i16.to_le_bytes());
-                out.extend_from_slice(&r_i16.to_le_bytes());
-            }
-            out
-        }
-
-        #[cfg_attr(target_os = "linux", allow(dead_code))]
-        fn encode_stereo_i16(&mut self, samples: &[i16], channels: usize) -> Vec<u8> {
-            let frames = samples.len() / channels.max(1);
-            let mut out = Vec::with_capacity(frames * 4);
-            for frame in samples.chunks_exact(channels.max(1)) {
-                let l_in = (frame[0] as f32) / 32768.0;
-                let r_in = if channels > 1 { (frame[1] as f32) / 32768.0 } else { l_in };
-                let (l1, r1) = self.low_shelf.process_stereo(l_in, r_in);
-                let (l2, r2) = self.high_shelf.process_stereo(l1, r1);
-                let l_i16 = (Self::soft_limit(l2) * 32767.0).round() as i16;
-                let r_i16 = (Self::soft_limit(r2) * 32767.0).round() as i16;
-                out.extend_from_slice(&l_i16.to_le_bytes());
-                out.extend_from_slice(&r_i16.to_le_bytes());
-            }
-            out
         }
     }
 
@@ -789,15 +867,6 @@ mod imp {
         }
 
         #[test]
-        fn f32_stereo_to_i16le_clamps_and_encodes_little_endian() {
-            let samples = [0.0_f32, 1.0, -1.0, 2.5, -3.0, f32::NAN];
-            let bytes = f32_stereo_to_i16le(&samples);
-            assert_eq!(bytes.len(), samples.len() * 2);
-            let decoded: Vec<i16> = bytes.as_chunks::<2>().0.iter().map(|&c| i16::from_le_bytes(c)).collect();
-            assert_eq!(decoded, vec![0, 32767, -32767, 32767, -32767, 0]);
-        }
-
-        #[test]
         fn set_enabled_toggles_atomic_state_cleanly() {
             set_enabled(false);
             assert!(!is_enabled());
@@ -834,20 +903,6 @@ mod imp {
             );
             assert_eq!(targeted_pw.last().map(String::as_str), Some("-"));
         }
-
-        #[test]
-        fn speaker_enhancer_encodes_stereo_f32_and_i16_without_clipping() {
-            let mut enhancer = SpeakerEnhancer::new(48_000);
-            let floats = [0.25_f32, -0.25, 0.95, -0.95, f32::NAN, 0.5];
-            let encoded = enhancer.encode_stereo_f32(&floats, 2);
-            assert_eq!(encoded.len(), 3 * 4);
-            assert!(encoded.iter().any(|&b| b != 0));
-
-            let i16s = [8000i16, -8000, 16000, -16000];
-            let encoded_i16 = enhancer.encode_stereo_i16(&i16s, 2);
-            assert_eq!(encoded_i16.len(), 2 * 4);
-            assert!(encoded_i16.iter().any(|&b| b != 0));
-        }
     }
 }
 
@@ -866,10 +921,6 @@ mod imp {
     }
 
     pub fn set_enabled(_enabled: bool) {}
-
-    pub fn f32_stereo_to_i16le(_samples: &[f32]) -> Vec<u8> {
-        Vec::new()
-    }
 }
 
 pub use imp::*;

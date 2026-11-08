@@ -127,7 +127,8 @@ pub mod qobject {
         #[qproperty(bool, nectar_island_media)]
         /// Trigger Nectar Island for phone notifications.
         #[qproperty(bool, nectar_island_notifications)]
-        /// Stream PC system audio to the connected phone via WASAPI loopback.
+        /// Stream PC system audio to the connected phone (WASAPI loopback on
+        /// Windows, the default sink's monitor on Linux; not on a Mac yet).
         #[qproperty(bool, stream_pc_audio_to_phone)]
         /// Share PC user folders (Downloads, Documents, Desktop, Pictures) with phones.
         #[qproperty(bool, share_pc_storage)]

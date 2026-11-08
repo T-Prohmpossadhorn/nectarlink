@@ -140,7 +140,7 @@ The [user guide](docs/guide/README.md) walks through every step and feature.
   saves straight to the PC.
 - **The phone's sound on the PC**, without a mirror window.
 - **Phone as a microphone** for Discord, Zoom, OBS or Teams, through a virtual
-  audio cable such as VB-CABLE.
+  audio cable such as VB-CABLE on Windows or BlackHole on a Mac.
 - **Play on phone**: carry on with the video playing on the PC.
 
 **And more**: media controls both ways, battery alerts, Find my device, a
