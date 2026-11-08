@@ -140,7 +140,7 @@ pub fn is_tray_available() -> bool {
     if !has_desktop_session() {
         return false;
     }
-    if !cfg!(test) && crate::bridge::native::ffi::linux_tray_is_available() {
+    if !cfg!(test) && crate::bridge::native::ffi::qt_tray_is_available() {
         return true;
     }
     if let Ok(conn) = zbus::blocking::Connection::session()
@@ -1382,21 +1382,6 @@ fn spawn_portal_appearance_listener(stop: Arc<AtomicBool>, handler: Arc<SharedHa
     });
 }
 
-pub(crate) fn parse_tray_helper_action(line: &str) -> Option<TrayEvent> {
-    match line.trim() {
-        "OPEN" => Some(TrayEvent::Open),
-        "COMMAND_PALETTE" => Some(TrayEvent::CommandPalette),
-        "SHELF" => Some(TrayEvent::Shelf),
-        "TAKE_PHOTO" => Some(TrayEvent::TakePhoto),
-        "SCAN_DOCUMENT" => Some(TrayEvent::ScanDocument),
-        "FIND_PHONE" => Some(TrayEvent::FindPhone),
-        "OPEN_LINK" => Some(TrayEvent::OpenLinkOnPhone),
-        "PAUSE_NOTIFICATIONS" => Some(TrayEvent::ToggleNotificationsPause),
-        "QUIT" => Some(TrayEvent::Quit),
-        _ => None,
-    }
-}
-
 pub struct Tray {
     tooltip: Mutex<String>,
     #[allow(dead_code)]
@@ -1437,7 +1422,7 @@ impl Tray {
             record_foreground_window();
 
             // 0. Qt QSystemTrayIcon + QMenu on the main GUI thread.
-            crate::bridge::native::ffi::linux_tray_setup(
+            crate::bridge::native::ffi::qt_tray_setup(
                 &icon_path.to_string_lossy(),
                 tooltip,
                 &labels.open,
@@ -1450,26 +1435,12 @@ impl Tray {
                 &labels.pause_notifications,
                 &labels.quit,
             );
-            let stop_clone = Arc::clone(&stop);
             let handler_clone = Arc::clone(&shared_handler);
-            if let Ok(handle) = std::thread::Builder::new().name("tray-qt-actions".into()).spawn(move || {
-                while !stop_clone.load(Ordering::Acquire) {
-                    let action = crate::bridge::native::ffi::linux_tray_wait_action(200);
-                    if stop_clone.load(Ordering::Acquire) {
-                        break;
-                    }
-                    if !action.is_empty()
-                        && let Some(ev) = parse_tray_helper_action(&action)
-                    {
-                        if matches!(
-                            ev,
-                            TrayEvent::CommandPalette | TrayEvent::TakePhoto | TrayEvent::ScanDocument
-                        ) {
-                            record_foreground_window();
-                        }
-                        handler_clone.emit(ev);
-                    }
+            if let Some(handle) = crate::qt_tray::spawn_action_thread(Arc::clone(&stop), move |ev| {
+                if matches!(ev, TrayEvent::CommandPalette | TrayEvent::TakePhoto | TrayEvent::ScanDocument) {
+                    record_foreground_window();
                 }
+                handler_clone.emit(ev);
             }) {
                 threads.push(handle);
             }
@@ -1503,15 +1474,14 @@ impl Tray {
             *guard = text.to_string();
         }
         if !cfg!(test) {
-            crate::bridge::native::ffi::linux_tray_set_tooltip(text);
+            crate::bridge::native::ffi::qt_tray_set_tooltip(text);
         }
     }
 
     /// Says Pause or Resume in the menu, whichever comes next.
     pub fn set_notifications_paused(&self, paused: bool) {
         let labels = self.labels.lock().unwrap_or_else(|e| e.into_inner());
-        let label = if paused { &labels.resume_notifications } else { &labels.pause_notifications };
-        crate::bridge::native::ffi::linux_tray_set_pause_label(label);
+        crate::bridge::native::ffi::qt_tray_set_pause_label(crate::qt_tray::pause_label(&labels, paused));
     }
 
     /// Whether "Find my phone" is offered (a phone is paired).
@@ -1520,7 +1490,7 @@ impl Tray {
             *guard = enabled;
         }
         if !cfg!(test) {
-            crate::bridge::native::ffi::linux_tray_set_find_phone_enabled(enabled);
+            crate::bridge::native::ffi::qt_tray_set_find_phone_enabled(enabled);
         }
     }
 }
@@ -1530,7 +1500,7 @@ impl Drop for Tray {
         self.stop.store(true, Ordering::Release);
         self.handler.clear();
         if !cfg!(test) {
-            crate::bridge::native::ffi::linux_tray_teardown();
+            crate::bridge::native::ffi::qt_tray_teardown();
         }
         if let Ok(mut threads) = self.threads.lock() {
             for handle in threads.drain(..) {
@@ -1662,19 +1632,6 @@ mod tests {
         tray.set_find_phone_enabled(true);
         assert!(tray.icon_path.exists());
         drop(tray);
-    }
-
-    #[test]
-    fn parse_tray_helper_action_maps_all_menu_items() {
-        assert_eq!(parse_tray_helper_action("OPEN\n"), Some(TrayEvent::Open));
-        assert_eq!(parse_tray_helper_action("COMMAND_PALETTE"), Some(TrayEvent::CommandPalette));
-        assert_eq!(parse_tray_helper_action("SHELF"), Some(TrayEvent::Shelf));
-        assert_eq!(parse_tray_helper_action("TAKE_PHOTO"), Some(TrayEvent::TakePhoto));
-        assert_eq!(parse_tray_helper_action("SCAN_DOCUMENT"), Some(TrayEvent::ScanDocument));
-        assert_eq!(parse_tray_helper_action("FIND_PHONE"), Some(TrayEvent::FindPhone));
-        assert_eq!(parse_tray_helper_action("OPEN_LINK"), Some(TrayEvent::OpenLinkOnPhone));
-        assert_eq!(parse_tray_helper_action("QUIT"), Some(TrayEvent::Quit));
-        assert_eq!(parse_tray_helper_action("UNKNOWN"), None);
     }
 
     #[test]

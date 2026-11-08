@@ -1009,10 +1009,15 @@ fn dispatch_jump_task(qt: &CxxQtThread<qobject::AppController>, action: String) 
 }
 
 /// Formats the tray tooltip summary for a single connected phone: battery level,
-/// charging status, and optional Wi-Fi / cellular signal bars.
-pub(crate) fn format_tray_device_summary(name: &str, b: &nectarlink_core::Battery) -> String {
+/// charging status, and optional Wi-Fi / cellular signal bars. `name` is the
+/// phone's name, or `None` to leave it out.
+pub(crate) fn format_tray_device_summary(name: Option<&str>, b: &nectarlink_core::Battery) -> String {
     let charging = if b.charging { ", charging" } else { "" };
-    let mut parts = vec![format!("{name} · {}%{charging}", b.level)];
+    let level = match name {
+        Some(name) => format!("{name} · {}%{charging}", b.level),
+        None => format!("{}%{charging}", b.level),
+    };
+    let mut parts = vec![level];
     if let Some(w) = b.wifi_bars {
         parts.push(tr!("App", "Wi-Fi %1/4", w));
     }
@@ -1021,6 +1026,32 @@ pub(crate) fn format_tray_device_summary(name: &str, b: &nectarlink_core::Batter
         parts.push(format!("{label} {c}/4"));
     }
     parts.join(" · ")
+}
+
+/// The phone's name goes into the tray text, except in the macOS menu bar,
+/// which anyone near the screen can read. `on_macos` is a flag so that a test
+/// can check the rule on every platform.
+pub(crate) fn tray_tooltip_phone_name(name: &str, on_macos: bool) -> Option<&str> {
+    if on_macos { None } else { Some(name) }
+}
+
+/// The text over the tray icon: how many devices are paired and connected, with
+/// `battery` (see [`format_tray_device_summary`]) for the one connected phone,
+/// and how many items wait to be sent.
+pub(crate) fn tray_tooltip(devices: usize, online: usize, battery: Option<&str>, waiting: usize) -> String {
+    let mut tooltip = match (devices, online) {
+        (0, _) => tr!("App", "NectarLink · no devices paired"),
+        (_, 0) => tr!("App", "NectarLink · not connected"),
+        (_, 1) => battery.map_or_else(
+            || tr!("App", "NectarLink · 1 device connected"),
+            |b| tr!("App", "NectarLink · %1", b),
+        ),
+        (_, n) => tr!("App", "NectarLink · %1 devices connected", n),
+    };
+    if waiting > 0 {
+        tooltip.push_str(&format!(" · {waiting} waiting"));
+    }
+    tooltip
 }
 
 fn on_tray_event(qt: &CxxQtThread<qobject::AppController>, event: tray::TrayEvent) {
@@ -1218,7 +1249,12 @@ impl qobject::AppController {
                 .is_some_and(|d| matches!(d.link, LinkState::Online { .. }));
             // With one phone connected, the tray shows its battery and signal strength.
             let battery = match connected.as_slice() {
-                [one] => one.battery.as_ref().map(|b| format_tray_device_summary(&one.info.name, b)),
+                [one] => one.battery.as_ref().map(|b| {
+                    format_tray_device_summary(
+                        tray_tooltip_phone_name(&one.info.name, cfg!(target_os = "macos")),
+                        b,
+                    )
+                }),
                 _ => None,
             };
             let wake_adapter = s.wake.primary().map(|a| a.label.clone()).unwrap_or_default();
@@ -1305,18 +1341,7 @@ impl qobject::AppController {
         self.as_mut().set_caps_revision(caps_version as i32);
         self.as_mut().set_phone_toggles_revision(toggles_version as i32);
 
-        let mut tooltip = match (devices, online) {
-            (0, _) => tr!("App", "NectarLink · no devices paired"),
-            (_, 0) => tr!("App", "NectarLink · not connected"),
-            (_, 1) => battery.map_or_else(
-                || tr!("App", "NectarLink · 1 device connected"),
-                |b| tr!("App", "NectarLink · %1", b),
-            ),
-            (_, n) => tr!("App", "NectarLink · %1 devices connected", n),
-        };
-        if waiting_count > 0 {
-            tooltip.push_str(&format!(" · {waiting_count} waiting"));
-        }
+        let tooltip = tray_tooltip(devices, online, battery.as_deref(), waiting_count);
         let tooltip_changed = self.rust().last_tray_tooltip != tooltip;
         if let Some(tray) = self.rust().tray.as_ref() {
             tray.set_find_phone_enabled(devices > 0);
@@ -3472,7 +3497,10 @@ mod tests {
             cell_type: Some("5G".into()),
             wifi_bars: Some(3),
         };
-        assert_eq!(format_tray_device_summary("Pixel 9", &b), "Pixel 9 · 85%, charging · Wi-Fi 3/4 · 5G 4/4");
+        assert_eq!(
+            format_tray_device_summary(Some("Pixel 9"), &b),
+            "Pixel 9 · 85%, charging · Wi-Fi 3/4 · 5G 4/4"
+        );
 
         let basic = nectarlink_core::Battery {
             level: 40,
@@ -3483,6 +3511,48 @@ mod tests {
             cell_type: None,
             wifi_bars: None,
         };
-        assert_eq!(format_tray_device_summary("Galaxy", &basic), "Galaxy · 40% · Cell 2/4");
+        assert_eq!(format_tray_device_summary(Some("Galaxy"), &basic), "Galaxy · 40% · Cell 2/4");
+        assert_eq!(format_tray_device_summary(None, &basic), "40% · Cell 2/4");
+        assert_eq!(format_tray_device_summary(None, &b), "85%, charging · Wi-Fi 3/4 · 5G 4/4");
+    }
+
+    #[test]
+    fn tray_tooltip_counts_devices_and_waiting_items() {
+        assert_eq!(tray_tooltip(0, 0, None, 0), "NectarLink · no devices paired");
+        assert_eq!(tray_tooltip(0, 0, None, 3), "NectarLink · no devices paired · 3 waiting");
+        assert_eq!(tray_tooltip(2, 0, None, 0), "NectarLink · not connected");
+        assert_eq!(tray_tooltip(1, 1, None, 0), "NectarLink · 1 device connected");
+        assert_eq!(tray_tooltip(3, 2, None, 0), "NectarLink · 2 devices connected");
+        assert_eq!(tray_tooltip(3, 2, None, 1), "NectarLink · 2 devices connected · 1 waiting");
+        // The one connected phone's summary replaces the count.
+        assert_eq!(tray_tooltip(1, 1, Some("85%, charging"), 0), "NectarLink · 85%, charging");
+        // A summary only counts for exactly one connected phone.
+        assert_eq!(tray_tooltip(3, 2, Some("85%"), 0), "NectarLink · 2 devices connected");
+    }
+
+    #[test]
+    fn the_macos_tooltip_never_carries_a_device_name() {
+        let b = nectarlink_core::Battery {
+            level: 85,
+            charging: false,
+            plugged: None,
+            full_in: None,
+            cell_bars: None,
+            cell_type: None,
+            wifi_bars: None,
+        };
+        let name = "Pixel 9";
+        // On macOS the name is left out, on every platform's test run.
+        assert_eq!(tray_tooltip_phone_name(name, true), None);
+        let summary = format_tray_device_summary(tray_tooltip_phone_name(name, true), &b);
+        let tooltip = tray_tooltip(1, 1, Some(&summary), 0);
+        assert_eq!(tooltip, "NectarLink · 85%");
+        assert!(!tooltip.contains(name));
+        // Elsewhere the name is kept.
+        assert_eq!(tray_tooltip_phone_name(name, false), Some(name));
+        // Counts alone never name anything.
+        for (devices, online) in [(0, 0), (1, 0), (1, 1), (4, 3)] {
+            assert!(!tray_tooltip(devices, online, None, 2).contains(name));
+        }
     }
 }

@@ -110,6 +110,45 @@ pub fn render(size: usize) -> Vec<u8> {
     out
 }
 
+/// The mark without its tile, as one flat color with alpha only: the two loops
+/// and the drop, black, straight-alpha RGBA, `size`×`size`. For a menu-bar
+/// icon that the system draws in its own color (a mask icon): the tile would
+/// become a solid square.
+// `build.rs` includes this file and never draws a glyph. On Windows and Linux
+// only a Mac menu bar uses it.
+#[allow(dead_code)]
+pub fn render_glyph(size: usize) -> Vec<u8> {
+    let g = Geometry::for_size(size);
+    let unit = 100.0 / size as f32;
+    let left = polyline(&LEFT_LOOP);
+    let right = polyline(&RIGHT_LOOP);
+    let (sin, cos) = (-TILT.to_radians()).sin_cos();
+    let half = g.stroke / 2.0;
+
+    let mut out = vec![0u8; size * size * 4];
+    for py in 0..size {
+        for px in 0..size {
+            let mut covered = 0usize;
+            for sy in 0..SS {
+                for sx in 0..SS {
+                    let x = (px as f32 + (sx as f32 + 0.5) / SS as f32) * unit;
+                    let y = (py as f32 + (sy as f32 + 0.5) / SS as f32) * unit;
+                    let (dx, dy) = (x - 50.0, y - 50.0);
+                    let (ux, uy) = (50.0 + dx * cos - dy * sin, 50.0 + dx * sin + dy * cos);
+                    if (dx * dx + dy * dy).sqrt() <= g.drop
+                        || distance_to(&left, (ux, uy)) <= half
+                        || distance_to(&right, (ux, uy)) <= half
+                    {
+                        covered += 1;
+                    }
+                }
+            }
+            out[(py * size + px) * 4 + 3] = ((covered as f32 / (SS * SS) as f32) * 255.0).round() as u8;
+        }
+    }
+    out
+}
+
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 }
@@ -194,6 +233,19 @@ mod tests {
         let left = (8..56).any(|x| light(pixel(&img, size, x, 64)) || light(pixel(&img, size, x, 70)));
         let right = (72..120).any(|x| light(pixel(&img, size, x, 64)) || light(pixel(&img, size, x, 58)));
         assert!(left && right);
+    }
+
+    #[test]
+    fn the_glyph_is_black_ink_without_a_tile() {
+        let size = 36;
+        let img = render_glyph(size);
+        assert_eq!(img.len(), size * size * 4);
+        assert!(img.chunks(4).all(|p| p[..3] == [0, 0, 0]), "only alpha carries the shape");
+        assert_eq!(pixel(&img, size, 0, 0)[3], 0, "corner");
+        assert_eq!(pixel(&img, size, 18, 3)[3], 0, "between the loops, near the top edge");
+        assert_eq!(pixel(&img, size, 18, 18)[3], 255, "the drop");
+        let ink = img.chunks(4).filter(|p| p[3] == 255).count();
+        assert!(ink > 0 && ink < size * size / 2, "{ink} opaque pixels");
     }
 
     #[test]
