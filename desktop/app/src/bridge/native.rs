@@ -84,7 +84,7 @@ pub mod ffi {
 
         #[allow(dead_code)]
         #[allow(clippy::too_many_arguments)]
-        fn linux_tray_setup(
+        fn qt_tray_setup(
             icon_path: &str,
             tooltip: &str,
             open_label: &str,
@@ -98,23 +98,29 @@ pub mod ffi {
             quit_label: &str,
         );
 
+        /// The picture of the macOS menu-bar item: straight-alpha RGBA,
+        /// `size`×`size` pixels, drawn as a mask in the bar's own color. Before
+        /// `qt_tray_setup`. Other systems ignore it.
         #[allow(dead_code)]
-        fn linux_tray_set_tooltip(tooltip: &str);
+        fn qt_tray_set_mask_icon(size: i32, rgba: &[u8]);
 
         #[allow(dead_code)]
-        fn linux_tray_set_pause_label(label: &str);
+        fn qt_tray_set_tooltip(tooltip: &str);
 
         #[allow(dead_code)]
-        fn linux_tray_set_find_phone_enabled(enabled: bool);
+        fn qt_tray_set_pause_label(label: &str);
 
         #[allow(dead_code)]
-        fn linux_tray_teardown();
+        fn qt_tray_set_find_phone_enabled(enabled: bool);
 
         #[allow(dead_code)]
-        fn linux_tray_wait_action(timeout_ms: u32) -> String;
+        fn qt_tray_teardown();
 
         #[allow(dead_code)]
-        fn linux_tray_is_available() -> bool;
+        fn qt_tray_wait_action(timeout_ms: u32) -> String;
+
+        #[allow(dead_code)]
+        fn qt_tray_is_available() -> bool;
 
         #[allow(dead_code)]
         fn linux_work_area(x: &mut i32, y: &mut i32, w: &mut i32, h: &mut i32) -> bool;

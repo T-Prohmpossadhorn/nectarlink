@@ -12,6 +12,12 @@ change things that need a step from you, and its notes say so.
   the Windows PC, every screen is translated. Settings › Appearance › Language
   picks it, or the system language does. Thanks to
   [@wuwenhou](https://github.com/wuwenhou).
+- **A NectarLink item in the Mac menu bar.** A click on it should open a menu with the same
+  items as the tray on Windows and Linux: Open, Command palette, Shelf, the phone actions,
+  pause or resume for phone notifications, and Quit. The picture should follow the color of
+  the menu bar. Its tooltip shows how many phones are connected, or the battery of the one
+  that is, and never a phone name. Closing the window still quits the app on a Mac. This is
+  not tested on a Mac yet.
 - **Mac finds your phone again after a network change.** On a Mac, NectarLink now notices
   when you switch Wi-Fi, plug in a cable or start a VPN, and tries to reconnect to paired
   phones.

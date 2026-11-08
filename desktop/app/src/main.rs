@@ -51,6 +51,8 @@ mod photo_backup;
 mod photos;
 mod play_on_phone;
 mod qr;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod qt_tray;
 mod recordings;
 mod remote;
 mod send_to;

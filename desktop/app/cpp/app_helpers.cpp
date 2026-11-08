@@ -34,18 +34,20 @@
 #endif
 
 #ifdef __APPLE__
-// Only `QApplication` is needed here. The tray and menu classes stay Linux-only.
-#include <QtWidgets/QApplication>
 #include <crt_externs.h>
 #endif
 
 #ifdef __linux__
 #include <QtCore/QBuffer>
+#include <QtGui/QClipboard>
+#include <QtGui/QScreen>
+#endif
+
+// The tray icon (Linux) and the menu-bar item (macOS) are the same Qt classes.
+#if defined(__linux__) || defined(__APPLE__)
 #include <QtCore/QMetaObject>
 #include <QtCore/QThread>
 #include <QtGui/QAction>
-#include <QtGui/QClipboard>
-#include <QtGui/QScreen>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QSystemTrayIcon>
@@ -605,7 +607,12 @@ LinuxClipboardWatch &linuxClipboardWatch()
     return *watch;
 }
 
-struct LinuxTrayState {
+} // namespace
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+namespace {
+struct QtTrayState {
     QPointer<QSystemTrayIcon> icon;
     QPointer<QMenu> menu;
     QPointer<QAction> takePhotoAction;
@@ -619,15 +626,24 @@ struct LinuxTrayState {
     std::deque<std::string> actions;
 };
 
-LinuxTrayState &linuxTray()
+#ifdef __APPLE__
+// The menu-bar picture, set by `qt_tray_set_mask_icon`. Main thread only.
+QIcon &qtTrayMaskIcon()
 {
-    static LinuxTrayState *state = new LinuxTrayState();
+    static QIcon icon;
+    return icon;
+}
+#endif
+
+QtTrayState &qtTray()
+{
+    static QtTrayState *state = new QtTrayState();
     return *state;
 }
 
 void pushTrayAction(const char *action)
 {
-    auto &st = linuxTray();
+    auto &st = qtTray();
     {
         std::lock_guard<std::mutex> lock(st.mutex);
         st.actions.emplace_back(action);
@@ -648,6 +664,11 @@ void runOnQtMainThread(F &&fn)
     }
 }
 
+} // namespace
+#endif
+
+#ifdef __linux__
+namespace {
 template <typename F>
 bool runOnQtMainThreadSync(F &&fn, uint32_t timeout_ms = 500)
 {
@@ -711,8 +732,8 @@ std::unique_ptr<QGuiApplication> create_qt_app()
     }
     return app;
 #elif defined(__APPLE__)
-    // Same class as Linux, so the menu-bar item and menus can use Qt Widgets later.
-    // Nothing uses a widget yet. The app still shows only QML windows.
+    // Same class as Linux, for the menu-bar item and its menu (`qt_tray_*`).
+    // The windows are still all QML.
     // Unlike Linux, macOS passes the real command line on: App.qml reads
     // `Qt.application.arguments` (for example `--minimized`), as it did before
     // when cxx-qt-lib built the application from the process arguments.
@@ -726,7 +747,30 @@ std::unique_ptr<QGuiApplication> create_qt_app()
 #endif
 }
 
-void linux_tray_setup(
+void qt_tray_set_mask_icon(int32_t size, rust::Slice<const uint8_t> rgba)
+{
+#ifdef __APPLE__
+    if (size <= 0 || rgba.size() != static_cast<size_t>(size) * static_cast<size_t>(size) * 4)
+        return;
+    // `copy()` so the image owns its bytes: the slice is gone when this returns.
+    const QImage image = QImage(rgba.data(), size, size, size * 4, QImage::Format_RGBA8888).copy();
+    runOnQtMainThread([image]() {
+        // Twice the points: the picture is drawn at half its pixel size.
+        QPixmap pixmap = QPixmap::fromImage(image);
+        pixmap.setDevicePixelRatio(2.0);
+        QIcon icon;
+        icon.addPixmap(pixmap);
+        // A mask: the system draws the shape in the menu bar's own color.
+        icon.setIsMask(true);
+        qtTrayMaskIcon() = icon;
+    });
+#else
+    (void)size;
+    (void)rgba;
+#endif
+}
+
+void qt_tray_setup(
     rust::Str icon_path,
     rust::Str tooltip,
     rust::Str open_label,
@@ -739,7 +783,7 @@ void linux_tray_setup(
     rust::Str pause_notifications_label,
     rust::Str quit_label)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
     const QString iconPath = QString::fromUtf8(icon_path.data(), static_cast<qsizetype>(icon_path.size()));
     const QString tooltipStr = QString::fromUtf8(tooltip.data(), static_cast<qsizetype>(tooltip.size()));
     const QString openStr = QString::fromUtf8(open_label.data(), static_cast<qsizetype>(open_label.size()));
@@ -755,7 +799,7 @@ void linux_tray_setup(
     runOnQtMainThread([=]() {
         if (!qobject_cast<QApplication *>(QCoreApplication::instance()))
             return;
-        auto &st = linuxTray();
+        auto &st = qtTray();
         if (st.icon) {
             st.icon->hide();
             delete st.icon.data();
@@ -768,48 +812,84 @@ void linux_tray_setup(
             st.actions.clear();
         }
 
-        // Menu order matches win/tray.rs:
-        // Take Photo, Scan Document, Separator, Open, Command Palette, Shelf, Find Phone, Open Link, Separator, Quit.
+        // The items made with `needsPhone` are on only while a phone is paired.
         const bool enabled = st.phoneActionsEnabled;
         auto *menu = new QMenu();
-        QAction *takePhoto = menu->addAction(photoStr);
-        takePhoto->setEnabled(enabled);
-        QObject::connect(takePhoto, &QAction::triggered, menu, []() { pushTrayAction("TAKE_PHOTO"); });
+        auto makeItem = [&](const QString &text, const char *action, bool needsPhone) {
+            auto *item = new QAction(text, menu);
+#ifdef __APPLE__
+            // Without this, Qt moves an item named like Quit or About into the
+            // application menu, and the menu-bar menu would lose it.
+            item->setMenuRole(QAction::NoRole);
+#endif
+            if (needsPhone)
+                item->setEnabled(enabled);
+            QObject::connect(item, &QAction::triggered, menu, [action]() { pushTrayAction(action); });
+            return item;
+        };
+        QAction *openItem = makeItem(openStr, "OPEN", false);
+        QAction *palette = makeItem(paletteStr, "COMMAND_PALETTE", false);
+        QAction *shelf = makeItem(shelfStr, "SHELF", false);
+        QAction *takePhoto = makeItem(photoStr, "TAKE_PHOTO", true);
+        QAction *scanDoc = makeItem(scanStr, "SCAN_DOCUMENT", true);
+        QAction *findPhone = makeItem(findPhoneStr, "FIND_PHONE", true);
+        QAction *openLink = makeItem(openLinkStr, "OPEN_LINK", true);
+        QAction *pause = makeItem(pauseStr, "PAUSE_NOTIFICATIONS", false);
+        QAction *quitItem = makeItem(quitStr, "QUIT", false);
 
-        QAction *scanDoc = menu->addAction(scanStr);
-        scanDoc->setEnabled(enabled);
-        QObject::connect(scanDoc, &QAction::triggered, menu, []() { pushTrayAction("SCAN_DOCUMENT"); });
-
+#ifdef __APPLE__
+        // A click on the item opens the menu, so Open comes first. Quit is
+        // always the last item.
+        menu->addAction(openItem);
+        menu->addAction(palette);
+        menu->addAction(shelf);
         menu->addSeparator();
-        QObject::connect(menu->addAction(openStr), &QAction::triggered, menu, []() { pushTrayAction("OPEN"); });
-        QObject::connect(menu->addAction(paletteStr), &QAction::triggered, menu, []() { pushTrayAction("COMMAND_PALETTE"); });
-        QObject::connect(menu->addAction(shelfStr), &QAction::triggered, menu, []() { pushTrayAction("SHELF"); });
-
-        QAction *findPhone = menu->addAction(findPhoneStr);
-        findPhone->setEnabled(enabled);
-        QObject::connect(findPhone, &QAction::triggered, menu, []() { pushTrayAction("FIND_PHONE"); });
-
-        QAction *openLink = menu->addAction(openLinkStr);
-        openLink->setEnabled(enabled);
-        QObject::connect(openLink, &QAction::triggered, menu, []() { pushTrayAction("OPEN_LINK"); });
-
-        QAction *pause = menu->addAction(pauseStr);
-        QObject::connect(pause, &QAction::triggered, menu, []() { pushTrayAction("PAUSE_NOTIFICATIONS"); });
-
+        menu->addAction(takePhoto);
+        menu->addAction(scanDoc);
+        menu->addAction(findPhone);
+        menu->addAction(openLink);
+        menu->addAction(pause);
         menu->addSeparator();
-        QObject::connect(menu->addAction(quitStr), &QAction::triggered, menu, []() { pushTrayAction("QUIT"); });
+        menu->addAction(quitItem);
+        menu->setAccessibleName(QStringLiteral("NectarLink"));
+#else
+        // Menu order matches win/tray.rs:
+        // Take Photo, Scan Document, Separator, Open, Command Palette, Shelf, Find Phone, Open Link, Separator, Quit.
+        menu->addAction(takePhoto);
+        menu->addAction(scanDoc);
+        menu->addSeparator();
+        menu->addAction(openItem);
+        menu->addAction(palette);
+        menu->addAction(shelf);
+        menu->addAction(findPhone);
+        menu->addAction(openLink);
+        menu->addAction(pause);
+        menu->addSeparator();
+        menu->addAction(quitItem);
+#endif
 
         auto *tray = new QSystemTrayIcon(QCoreApplication::instance());
-        QIcon icon = appIcon();
+        QIcon icon;
+#ifdef __APPLE__
+        icon = qtTrayMaskIcon();
+        // No mask picture: the app icon is better than an empty item.
+        if (icon.isNull())
+            icon = appIcon();
+#else
+        icon = appIcon();
+#endif
         if (icon.isNull() && !iconPath.isEmpty())
             icon = QIcon(iconPath);
         tray->setIcon(icon);
         tray->setToolTip(tooltipStr);
         tray->setContextMenu(menu);
+#ifndef __APPLE__
+        // On macOS a click opens the menu (Qt emits no click while a menu is set).
         QObject::connect(tray, &QSystemTrayIcon::activated, tray, [](QSystemTrayIcon::ActivationReason reason) {
             if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
                 pushTrayAction("OPEN");
         });
+#endif
         tray->show();
 
         st.icon = tray;
@@ -835,12 +915,12 @@ void linux_tray_setup(
 #endif
 }
 
-void linux_tray_set_pause_label(rust::Str label)
+void qt_tray_set_pause_label(rust::Str label)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
     const QString text = QString::fromUtf8(label.data(), static_cast<qsizetype>(label.size()));
     runOnQtMainThread([text]() {
-        if (auto *action = linuxTray().pauseAction.data())
+        if (auto *action = qtTray().pauseAction.data())
             action->setText(text);
     });
 #else
@@ -848,12 +928,12 @@ void linux_tray_set_pause_label(rust::Str label)
 #endif
 }
 
-void linux_tray_set_tooltip(rust::Str tooltip)
+void qt_tray_set_tooltip(rust::Str tooltip)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
     const QString tooltipStr = QString::fromUtf8(tooltip.data(), static_cast<qsizetype>(tooltip.size()));
     runOnQtMainThread([tooltipStr]() {
-        if (auto *icon = linuxTray().icon.data())
+        if (auto *icon = qtTray().icon.data())
             icon->setToolTip(tooltipStr);
     });
 #else
@@ -861,11 +941,11 @@ void linux_tray_set_tooltip(rust::Str tooltip)
 #endif
 }
 
-void linux_tray_set_find_phone_enabled(bool enabled)
+void qt_tray_set_find_phone_enabled(bool enabled)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
     runOnQtMainThread([enabled]() {
-        auto &st = linuxTray();
+        auto &st = qtTray();
         st.phoneActionsEnabled = enabled;
         if (auto *act = st.takePhotoAction.data())
             act->setEnabled(enabled);
@@ -881,13 +961,13 @@ void linux_tray_set_find_phone_enabled(bool enabled)
 #endif
 }
 
-void linux_tray_teardown()
+void qt_tray_teardown()
 {
-#ifdef __linux__
-    auto &st = linuxTray();
+#if defined(__linux__) || defined(__APPLE__)
+    auto &st = qtTray();
     st.cv.notify_all();
     runOnQtMainThread([]() {
-        auto &s = linuxTray();
+        auto &s = qtTray();
         if (s.icon) {
             s.icon->hide();
             delete s.icon.data();
@@ -899,14 +979,15 @@ void linux_tray_teardown()
         s.scanDocumentAction = nullptr;
         s.findPhoneAction = nullptr;
         s.openLinkAction = nullptr;
+        s.pauseAction = nullptr;
     });
 #endif
 }
 
-rust::String linux_tray_wait_action(uint32_t timeout_ms)
+rust::String qt_tray_wait_action(uint32_t timeout_ms)
 {
-#ifdef __linux__
-    auto &st = linuxTray();
+#if defined(__linux__) || defined(__APPLE__)
+    auto &st = qtTray();
     std::unique_lock<std::mutex> lock(st.mutex);
     if (st.actions.empty() && timeout_ms > 0) {
         st.cv.wait_for(lock, std::chrono::milliseconds(timeout_ms));
@@ -922,7 +1003,8 @@ rust::String linux_tray_wait_action(uint32_t timeout_ms)
     return rust::String();
 }
 
-bool linux_tray_is_available()
+// Linux only. Nothing asks on macOS: the menu bar is always there.
+bool qt_tray_is_available()
 {
 #ifdef __linux__
     bool available = false;
