@@ -84,7 +84,7 @@ pub fn set_page_active(active: bool) {
 pub fn init(data_dir: &Path) {
     let path = data_dir.join(FILE_NAME);
     if !path.exists() {
-        let default = DeckConfig::default_deck();
+        let default = default_config();
         let _ = default.save(&path);
     }
     let config = DeckConfig::load(&path);
@@ -197,9 +197,21 @@ pub fn on_local_media_changed(players: &[nectarlink_core::MediaPlayer]) {
     });
 }
 
+/// The first-run layout. A Mac cannot press Show desktop (see [`system_shortcut`]), so its
+/// default Deck leaves that tile out. Decks saved earlier keep the tile they have.
+fn default_config() -> DeckConfig {
+    let mut config = DeckConfig::default_deck();
+    if cfg!(target_os = "macos") {
+        for page in &mut config.pages {
+            page.tiles.retain(|t| t.action != DeckAction::ShowDesktop);
+        }
+    }
+    config
+}
+
 /// Returns the current [`DeckConfig`].
 pub fn config() -> DeckConfig {
-    lock(&DECK).as_ref().map(|rt| rt.config.clone()).unwrap_or_else(DeckConfig::default_deck)
+    lock(&DECK).as_ref().map(|rt| rt.config.clone()).unwrap_or_else(default_config)
 }
 
 /// Returns the current [`DeckState`].
@@ -211,7 +223,7 @@ fn commit_config(mutate: impl FnOnce(&mut DeckConfig)) {
     let wire = {
         let mut guard = lock(&DECK);
         let rt = guard.get_or_insert_with(|| RuntimeState {
-            config: DeckConfig::default_deck(),
+            config: default_config(),
             state: sample_live_state(),
             path: Some(core_host::host().data_dir.join(FILE_NAME)),
             last_mtime: None,
@@ -457,7 +469,7 @@ pub fn remove_page(page_id: &str) {
 /// Resets the Deck to the default layout.
 pub fn reset_default() {
     commit_config(|cfg| {
-        *cfg = DeckConfig::default_deck();
+        *cfg = default_config();
     });
 }
 
@@ -693,6 +705,30 @@ mod tests {
             Some(("5", &[KeyMod::Win, KeyMod::Shift][..]))
         );
         assert!(press_system_shortcut(SystemShortcut::ShowDesktop).is_err());
+    }
+
+    #[test]
+    fn the_first_run_deck_offers_only_tiles_the_system_can_press() {
+        let config = default_config();
+        assert!(config.is_valid());
+        let has_show_desktop =
+            config.pages.iter().flat_map(|p| &p.tiles).any(|t| t.action == DeckAction::ShowDesktop);
+        assert_eq!(has_show_desktop, !cfg!(target_os = "macos"));
+        assert!(!config.pages[0].tiles.is_empty());
+    }
+
+    /// DeckPage.qml spells the Mac keys itself. Pin those words to the keys pressed here.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_mac_deck_labels_name_the_keys_that_are_pressed() {
+        let qml = include_str!("../qml/pages/DeckPage.qml");
+        assert!(qml.contains("shortcutLabel(\"Win+Tab\", true)"));
+        assert!(qml.contains("shortcutLabel(\"Shift+Win+5\", true)"));
+        assert_eq!(system_shortcut(SystemShortcut::SwitchWindow), Some(("tab", &[KeyMod::Win][..])));
+        assert_eq!(
+            system_shortcut(SystemShortcut::Screenshot),
+            Some(("5", &[KeyMod::Win, KeyMod::Shift][..]))
+        );
     }
 
     #[test]

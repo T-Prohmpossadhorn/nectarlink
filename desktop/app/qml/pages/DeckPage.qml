@@ -90,7 +90,12 @@ Item {
         "app", "terminal", "bolt", "star"
     ]
 
-    readonly property var actionChoices: [
+    // A Mac has no key press for Show desktop, so its picker leaves the tile out. Tiles
+    // saved earlier keep their own label.
+    readonly property var actionChoices: allActionChoices.filter(
+        c => !(Qt.platform.os === "osx" && c.id === "show_desktop"))
+
+    readonly property var allActionChoices: [
         { id: "media_play_pause", group: qsTr("Media"), label: qsTr("Play / pause") },
         { id: "media_previous",   group: qsTr("Media"), label: qsTr("Previous track") },
         { id: "media_next",       group: qsTr("Media"), label: qsTr("Next track") },
@@ -99,13 +104,18 @@ Item {
         { id: "volume_mute",      group: qsTr("Audio"), label: qsTr("Mute speaker") },
         { id: "mic_mute",         group: qsTr("Audio"), label: qsTr("Mute microphone") },
         { id: "show_desktop",     group: qsTr("System"), label: Qt.platform.os === "linux" ? qsTr("Show desktop (Super+D)") : qsTr("Show desktop (Win+D)") },
-        { id: "switch_window",    group: qsTr("System"), label: qsTr("Switch window (Alt+Tab)") },
-        { id: "screenshot",       group: qsTr("System"), label: Qt.platform.os === "linux" ? qsTr("Screenshot") : qsTr("Screenshot (Win+Shift+S)") },
+        { id: "switch_window",    group: qsTr("System"), label: Qt.platform.os === "osx"
+            ? qsTr("Switch window (%1)").arg(AppController.shortcutLabel("Win+Tab", true))
+            : qsTr("Switch window (Alt+Tab)") },
+        { id: "screenshot",       group: qsTr("System"), label: Qt.platform.os === "osx"
+            ? qsTr("Screenshot (%1)").arg(AppController.shortcutLabel("Shift+Win+5", true))
+            : Qt.platform.os === "linux" ? qsTr("Screenshot") : qsTr("Screenshot (Win+Shift+S)") },
         { id: "lock_pc",          group: qsTr("System"), label: qsTr("Lock PC") },
         { id: "shortcut",         group: qsTr("Custom"), label: qsTr("Keyboard shortcut") },
         { id: "open_url",         group: qsTr("Custom"), label: qsTr("Open website") },
         { id: "type_text",        group: qsTr("Custom"), label: qsTr("Type text snippet") },
-        { id: "launch_app",       group: qsTr("Apps"),   label: Qt.platform.os === "linux" ? qsTr("Launch application (.desktop / binary)") : qsTr("Launch application (.exe / .lnk)") },
+        { id: "launch_app",       group: qsTr("Apps"),   label: Qt.platform.os === "osx" ? qsTr("Launch application (.app)")
+            : Qt.platform.os === "linux" ? qsTr("Launch application (.desktop / binary)") : qsTr("Launch application (.exe / .lnk)") },
         { id: "run_command",      group: qsTr("Apps"),   label: qsTr("Run shell command") }
     ]
 
@@ -144,9 +154,11 @@ Item {
     FileDialog {
         id: appFilePicker
         title: qsTr("Choose an application or shortcut")
-        nameFilters: Qt.platform.os === "linux"
-            ? [qsTr("Applications and launchers (*.desktop *.AppImage *)"), qsTr("All files (*)")]
-            : [qsTr("Applications and shortcuts (*.exe *.lnk)")]
+        nameFilters: Qt.platform.os === "osx"
+            ? [qsTr("Applications (*.app)"), qsTr("All files (*)")]
+            : Qt.platform.os === "linux"
+                ? [qsTr("Applications and launchers (*.desktop *.AppImage *)"), qsTr("All files (*)")]
+                : [qsTr("Applications and shortcuts (*.exe *.lnk)")]
         onAccepted: {
             const localPath = DeckController.urlToLocalPath(selectedFile.toString())
             if (localPath.length > 0) {
@@ -736,13 +748,13 @@ Item {
                     Chip {
                         interactive: true
                         selected: editorSheet.modCtrl
-                        text: qsTr("Ctrl")
+                        text: Qt.platform.os === "osx" ? AppController.shortcutLabel("Ctrl", true) : qsTr("Ctrl")
                         onClicked: editorSheet.modCtrl = !editorSheet.modCtrl
                     }
                     Chip {
                         interactive: true
                         selected: editorSheet.modAlt
-                        text: qsTr("Alt")
+                        text: Qt.platform.os === "osx" ? AppController.shortcutLabel("Alt", true) : qsTr("Alt")
                         onClicked: editorSheet.modAlt = !editorSheet.modAlt
                     }
                     Chip {
@@ -754,7 +766,8 @@ Item {
                     Chip {
                         interactive: true
                         selected: editorSheet.modWin
-                        text: Qt.platform.os === "linux" ? qsTr("Super") : qsTr("Win")
+                        text: Qt.platform.os === "osx" ? AppController.shortcutLabel("Win", true)
+                            : Qt.platform.os === "linux" ? qsTr("Super") : qsTr("Win")
                         onClicked: editorSheet.modWin = !editorSheet.modWin
                     }
                 }
@@ -765,7 +778,8 @@ Item {
                     text: editorSheet.actionKind === "shortcut" ? qsTr("Key (e.g. c, v, z, f5, tab, enter, space, escape, up, down):")
                         : editorSheet.actionKind === "open_url" ? qsTr("Website address (https://…):")
                         : editorSheet.actionKind === "type_text" ? qsTr("Text snippet to type:")
-                        : editorSheet.actionKind === "launch_app" ? (Qt.platform.os === "linux" ? qsTr("Application or launcher path (/usr/bin/…, .desktop, or .AppImage):") : qsTr("Application or shortcut path (.exe or .lnk):"))
+                        : editorSheet.actionKind === "launch_app" ? (Qt.platform.os === "osx" ? qsTr("Application path (/Applications/…, or a .app):")
+                            : Qt.platform.os === "linux" ? qsTr("Application or launcher path (/usr/bin/…, .desktop, or .AppImage):") : qsTr("Application or shortcut path (.exe or .lnk):"))
                         : qsTr("Shell command to run on this PC:")
                 }
 

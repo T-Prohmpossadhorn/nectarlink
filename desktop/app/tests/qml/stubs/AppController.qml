@@ -27,4 +27,6 @@ QtObject {
     function searchCommandPalette(query) {}
     function runDoctor() {}
     function doctorFix(id) {}
+    function shortcutLabel(spec, pressed) { return spec }
+    function recordedModifiers(ctrl, alt, shift, meta) { return "" }
 }

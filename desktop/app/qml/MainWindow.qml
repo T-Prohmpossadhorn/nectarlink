@@ -818,9 +818,12 @@ NativeWindow {
                     iconPath: Icons.search
                     iconSize: 16
                     text: qsTr("Commands")
-                    label: Preferences.commandPaletteHotkey.length > 0
-                        ? qsTr("Command palette (%1)").arg(Preferences.commandPaletteHotkey)
-                        : qsTr("Command palette (Ctrl+K)")
+                    // A Mac has no global hotkey yet, so it names the shortcut inside the app.
+                    label: Qt.platform.os === "osx"
+                        ? qsTr("Command palette (%1)").arg(AppController.shortcutLabel("Ctrl+K", false))
+                        : Preferences.commandPaletteHotkey.length > 0
+                            ? qsTr("Command palette (%1)").arg(Preferences.commandPaletteHotkey)
+                            : qsTr("Command palette (Ctrl+K)")
                     onClicked: AppController.openCommandPalette()
                     Component.onCompleted: window.addCaptionHole(paletteTopBtn)
                 }

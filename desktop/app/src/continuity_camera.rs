@@ -282,10 +282,18 @@ pub fn confirm_paste() {
         let label = if title.is_empty() { "active window".to_owned() } else { title };
         crate::bridge::app::show_message(tr!("ContinuityCamera", "Pasted into %1", label));
     } else {
-        crate::bridge::app::show_message(tr!(
-            "ContinuityCamera",
-            "Image is on your clipboard. Press Ctrl+V in your target app."
-        ));
+        // A Mac pastes with Command+V. Both texts are literals so `cargo xtask
+        // strings` finds them.
+        let message = if cfg!(target_os = "macos") {
+            tr!(
+                "ContinuityCamera",
+                "Image is on your clipboard. Press %1 in your target app.",
+                crate::key_names::shortcut_label("Ctrl+V", crate::key_names::Source::Recorded)
+            )
+        } else {
+            tr!("ContinuityCamera", "Image is on your clipboard. Press Ctrl+V in your target app.")
+        };
+        crate::bridge::app::show_message(message);
     }
 }
 

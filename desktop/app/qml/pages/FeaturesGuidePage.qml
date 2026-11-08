@@ -271,7 +271,8 @@ Item {
             capKey: "webcam",
             toggleKey: "",
             summary: qsTr("Capture a photo or scan a document with your phone and paste it into the active PC window."),
-            whereLabel: qsTr("Home › Continuity Camera (Ctrl+Alt+C / Ctrl+Alt+D)"),
+            whereLabel: Qt.platform.os === "osx" ? qsTr("Home › Continuity Camera")
+                : qsTr("Home › Continuity Camera (Ctrl+Alt+C / Ctrl+Alt+D)"),
             needsLabel: qsTr("Camera permission on phone"),
             targetId: "home:continuity",
             docKey: "continuity-camera"
@@ -378,7 +379,8 @@ Item {
             pcLocal: true,
             localAlways: true,
             summary: qsTr("Slide-out top screen-edge shelf with your latest phone photo, clipboard items, and file drop zone."),
-            whereLabel: qsTr("Top screen edge or Ctrl+Alt+S"),
+            whereLabel: Qt.platform.os === "osx" ? qsTr("Menu bar › Shelf")
+                : qsTr("Top screen edge or Ctrl+Alt+S"),
             needsLabel: qsTr("Always available on PC"),
             targetId: "settings:shortcuts:shelf",
             docKey: "shelf"
@@ -423,7 +425,9 @@ Item {
             pcLocal: true,
             localAlways: true,
             summary: qsTr("Keyboard-first search over actions, contacts, message threads, mirrorable apps, and quick toggles."),
-            whereLabel: qsTr("Top bar › Commands, or Ctrl+K (Ctrl+Alt+Space anywhere)"),
+            whereLabel: Qt.platform.os === "osx"
+                ? qsTr("Top bar › Commands, or %1").arg(AppController.shortcutLabel("Ctrl+K", false))
+                : qsTr("Top bar › Commands, or Ctrl+K (Ctrl+Alt+Space anywhere)"),
             needsLabel: qsTr("Always available on PC"),
             targetId: "settings:shortcuts:palette",
             docKey: "command-palette"
