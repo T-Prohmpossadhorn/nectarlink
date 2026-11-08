@@ -57,6 +57,7 @@ mod imp {
     const MUSIC_APPS: &[&str] = &[
         "spotify",
         "applemusic",
+        "com.apple.music",
         "itunes",
         "zunemusic",
         "foobar2000",
@@ -365,6 +366,11 @@ mod imp {
             assert!(plays_video("F0DC299D809B9700", "Zen", false));
             assert!(plays_video(r"C:/Program Files/VideoLAN/VLC/vlc.exe", "vlc", false));
             assert!(!plays_video("Spotify.exe", "Spotify", false));
+            // A Mac names a player by its bundle id.
+            assert!(!plays_video("com.apple.Music", "Music", false));
+            assert!(!plays_video("com.spotify.client", "Spotify", false));
+            assert!(plays_video("com.apple.Music", "Music", true));
+            assert!(plays_video("org.videolan.vlc", "VLC", false));
             assert!(!plays_video("chrome", "YouTube Music", false), "named by its site");
             assert!(!plays_video(
                 "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic",

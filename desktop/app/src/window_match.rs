@@ -184,6 +184,24 @@ mod tests {
     }
 
     #[test]
+    fn bundle_ids_match_like_program_names() {
+        // On macOS a program is a lowercase bundle id with no ".exe" to drop.
+        let list = [
+            ("org.mozilla.firefox", "A Song - YouTube - Firefox"),
+            ("com.google.chrome", "A Song - YouTube - Google Chrome"),
+            ("com.google.chrome", "Mail - Google Chrome"),
+        ];
+        assert_eq!(pick(&list, &["com.google.chrome"], "A Song"), Some(1));
+        assert_eq!(pick(&list, &["com.google.chrome"], ""), Some(1));
+        // An id is whole: a longer id of the same maker is another program.
+        let list = [("com.google.chrome.canary", "Mail")];
+        assert_eq!(pick(&list, &["com.google.chrome"], ""), None);
+        // A window whose program is unknown still fits by a long enough title.
+        let list = [("", "A Trailer - YouTube")];
+        assert_eq!(pick(&list, &["com.apple.safari"], "A Trailer"), Some(0));
+    }
+
+    #[test]
     fn a_program_alone_scores_lowest_but_counts() {
         let list = [("firefox", "News"), ("chrome", "Mail")];
         assert_eq!(pick(&list, &["chrome"], "A Song"), Some(1));
