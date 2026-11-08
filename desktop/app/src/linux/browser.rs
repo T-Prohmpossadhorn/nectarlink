@@ -226,36 +226,13 @@ fn program_for_pid(pid: u32) -> Option<String> {
 /// Pick the window most likely to be playing `title` in `player`.
 pub fn window_for(player: &str, title: &str) -> Option<Window> {
     let programs = programs_for(player);
-    let needle = title.trim().to_ascii_lowercase();
     let all = windows();
-
-    let mut best: Option<(i32, Window)> = None;
-    for w in all {
-        let prog_match = programs.iter().any(|p| {
-            let p_stem = p.trim_end_matches(".exe");
-            let w_stem = w.program.trim_end_matches(".exe");
-            !w_stem.is_empty() && (w_stem == p_stem || w.program == *p)
-        });
-        let wtitle = w.title.to_ascii_lowercase();
-        let title_match = !needle.is_empty() && wtitle.contains(&needle);
-        let word_hits = if needle.is_empty() {
-            0
-        } else {
-            needle.split_whitespace().filter(|word| word.len() >= 3 && wtitle.contains(*word)).count() as i32
-        };
-
-        let score = match (prog_match, title_match) {
-            (true, true) => 100 + word_hits,
-            (true, false) if word_hits >= 2 => 60 + word_hits,
-            (false, true) if needle.len() >= 6 => 50 + word_hits,
-            (true, false) => 20,
-            _ => 0,
-        };
-        if score > 0 && best.as_ref().is_none_or(|(b, _)| score > *b) {
-            best = Some((score, w));
-        }
-    }
-    best.map(|(_, w)| w)
+    let index = crate::window_match::best_window(
+        all.iter().map(|w| (w.program.as_str(), w.title.as_str())),
+        &programs,
+        title,
+    )?;
+    all.into_iter().nth(index)
 }
 
 pub fn use_physical_pixels() {
@@ -357,24 +334,6 @@ fn parse_xdotool_geometry(text: &str) -> Option<RECT> {
     Some(RECT { left, top, right: left + width, bottom: top + height })
 }
 
-pub(crate) fn looks_like_url(s: &str) -> bool {
-    let s = s.trim();
-    if s.is_empty() || s.contains(char::is_whitespace) {
-        return false;
-    }
-    if let Some(rest) = s.strip_prefix("https://").or_else(|| s.strip_prefix("http://")) {
-        return rest.contains('.') || rest.starts_with("localhost");
-    }
-    let host = s.split('/').next().unwrap_or("");
-    let Some((left, right)) = host.rsplit_once('.') else {
-        return false;
-    };
-    !left.is_empty()
-        && right.len() >= 2
-        && right.chars().all(|c| c.is_ascii_alphabetic())
-        && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,15 +344,6 @@ mod tests {
         assert!(programs_for("MSEdge").contains(&"msedge.exe".to_owned()));
         assert!(programs_for("308046B0AF4A39CB").contains(&"firefox.exe".to_owned()));
         assert!(programs_for("VideoLAN.VLC").contains(&"vlc.exe".to_owned()));
-    }
-
-    #[test]
-    fn spots_urls_with_or_without_scheme() {
-        assert!(looks_like_url("https://www.youtube.com/watch?v=abc"));
-        assert!(looks_like_url("youtube.com/watch?v=abc"));
-        assert!(looks_like_url("bilibili.com/video/BV1xx"));
-        assert!(!looks_like_url("Search Google or type a URL"));
-        assert!(!looks_like_url(""));
     }
 
     #[test]

@@ -31,6 +31,7 @@ mod imp {
         bridge::app::{describe, show_message},
         core_host,
         win::browser::{self, Automation, Window},
+        window_match::Rect,
     };
 
     /// The phone to play on: the first one online that can watch a PC's
@@ -319,11 +320,14 @@ mod imp {
                             },
                             _ => frame,
                         };
+                        let placed =
+                            Rect::new(on_screen.left, on_screen.top, on_screen.right, on_screen.bottom)
+                                .relative_to(Rect::new(frame.left, frame.top, frame.right, frame.bottom));
                         let in_window = RECT {
-                            left: on_screen.left - frame.left,
-                            top: on_screen.top - frame.top,
-                            right: on_screen.right - frame.left,
-                            bottom: on_screen.bottom - frame.top,
+                            left: placed.left,
+                            top: placed.top,
+                            right: placed.right,
+                            bottom: placed.bottom,
                         };
                         Some(Place { window: w.hwnd.0 as isize, on_screen, in_window })
                     });
