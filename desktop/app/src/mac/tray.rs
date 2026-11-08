@@ -87,6 +87,12 @@ impl Tray {
                 &labels.pause_notifications,
                 &labels.quit,
             );
+            // `qt_tray_setup` makes nothing when Qt runs without QApplication.
+            // Then the app must not count on a menu-bar item.
+            if !ffi::qt_tray_is_available() {
+                ffi::qt_tray_teardown();
+                return Err("could not make the menu-bar item".into());
+            }
             let menu_handler = Arc::clone(&handler);
             thread = crate::qt_tray::spawn_action_thread(Arc::clone(&stop), move |event| menu_handler(event));
             if thread.is_none() {

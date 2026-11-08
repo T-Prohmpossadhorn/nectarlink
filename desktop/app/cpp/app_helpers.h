@@ -76,7 +76,7 @@ uint64_t mac_free_space(rust::Str path, bool &ok);
 // a QMenu. Other systems have their own code and these do nothing there.
 // `qt_tray_set_mask_icon` gives the macOS picture (straight-alpha RGBA, size x
 // size) and runs before `qt_tray_setup`; `qt_tray_is_available` answers on
-// Linux only.
+// Linux (a tray host exists) and on macOS (the item exists, after `qt_tray_setup`).
 void qt_tray_set_mask_icon(int32_t size, rust::Slice<const uint8_t> rgba);
 void qt_tray_setup(
     rust::Str icon_path,

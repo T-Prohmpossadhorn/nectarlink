@@ -684,12 +684,18 @@ void pushTrayActionOnce(const char *action)
     st.cv.notify_all();
 }
 
-// Whether a main window (or the setup window) is open and not in the Dock.
+// Whether a normal window (the main window, the setup window, a Mirror window
+// or a dialog) is open and not in the Dock. The Island, the Shelf, the laser
+// overlay and menus are Tool or popup windows and do not count: the Island can
+// stay open for hours, and it would stop the app from ever reopening. The
+// check is for the window type itself, not a bit test: `Qt::Tool` has the
+// `Qt::Window` bit set too.
 bool mainWindowShowing()
 {
     const auto windows = QGuiApplication::topLevelWindows();
     for (QWindow *window : windows) {
-        if (qobject_cast<NativeWindow *>(window) && window->isVisible()
+        const Qt::WindowType type = window->type();
+        if ((type == Qt::Window || type == Qt::Dialog) && window->isVisible()
             && window->visibility() != QWindow::Minimized) {
             return true;
         }
@@ -697,12 +703,15 @@ bool mainWindowShowing()
     return false;
 }
 
-// Opens the main window when the user opens the app again while it has none:
-// a click on the Dock icon, or the app started again from Finder, Spotlight or
-// Launchpad (the system reopens the running app, and no second copy starts).
-// It sends "OPEN", the same text as the first menu item. It does nothing
-// without a menu-bar item, so it cannot open a window for an app that is
-// shutting down, and it ignores the activation of the app's own start.
+// Opens the main window when the user opens the app again while it has none.
+// Qt should report a click on the Dock icon, or the app started again from
+// Finder, Spotlight or Launchpad, as an activation of the app (the system
+// reopens the running app, and no second copy starts). That is not verified:
+// it is a hardware check in the pull request. It sends "OPEN", the same text
+// as the first menu item. It does nothing without a menu-bar item, so it
+// cannot open a window for an app that is shutting down, and it ignores the
+// activation of the app's own start. Any activation counts, so it also acts
+// when the user clicks another app window while no normal window is open.
 class ReopenWatcher : public QObject
 {
 public:
@@ -1099,9 +1108,14 @@ rust::String qt_tray_wait_action(uint32_t timeout_ms)
     return rust::String();
 }
 
-// Linux only. Nothing asks on macOS: the menu bar is always there.
+// Linux: whether a tray host exists. macOS: whether `qt_tray_setup` made the
+// menu-bar item (main thread only, otherwise false).
 bool qt_tray_is_available()
 {
+#ifdef __APPLE__
+    QCoreApplication *app = QCoreApplication::instance();
+    return app && QThread::currentThread() == app->thread() && !qtTray().icon.isNull();
+#else
 #ifdef __linux__
     bool available = false;
     if (runOnQtMainThreadSync([&available]() {
@@ -1111,6 +1125,7 @@ bool qt_tray_is_available()
     }
 #endif
     return false;
+#endif
 }
 
 bool linux_work_area(int32_t &x, int32_t &y, int32_t &w, int32_t &h)

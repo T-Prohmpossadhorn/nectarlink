@@ -132,7 +132,9 @@ QtObject {
     function onMainClosed() {
         if (mainLoader.active && mainLoader.item)
             mainLoader.item.saveWindowState()
-        if (!Preferences.closeToTray) {
+        // On a Mac a second launch is only an activation, so without the
+        // menu-bar item nothing could bring the window back: quit instead.
+        if (!Preferences.closeToTray || (Qt.platform.os === "osx" && !AppController.trayAvailable)) {
             Qt.quit()
             return
         }
