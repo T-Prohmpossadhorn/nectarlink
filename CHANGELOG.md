@@ -64,6 +64,13 @@ change things that need a step from you, and its notes say so.
   Loopback Audio or Soundflower if one is there. The microphone setting names BlackHole as
   an example on a Mac. On Linux, it no longer names VB-CABLE. This is not tested on a Mac
   with sound yet.
+- **A Mac can show your phone's screen and apps.** The Mac now tells your phone that it
+  can show its screen, so the Mirror screen tile and the Apps page should work. You can
+  also be able to tap, scroll and type on the phone from the Mac, and to open an app in a
+  window of its own. The phone's sound should play on the Mac. This is not tested on a Mac yet.
+  Recording to a video file is not available on a Mac, so the record button and the
+  record shortcut are hidden there. The phone asks for its screen-capture permission each
+  time, unless it is at the Elevated level. The screenshot buttons name Command keys.
 - **More ways to sync a folder.** A synced folder can now go one way from the PC to the
   phone. Phone to PC can also remove from the PC what you delete on the phone: only
   files it synced and that haven't changed on the PC, and they go to the Recycle Bin. Both

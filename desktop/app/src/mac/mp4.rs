@@ -6,6 +6,13 @@ use std::{
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
+/// Whether this build can record the mirror to an MP4 file. A Mac cannot yet: this
+/// file is a stub, so the window hides its record button and Ctrl+R instead of
+/// showing a recording that never saves.
+pub fn supported() -> bool {
+    false
+}
+
 /// `"{prefix} YYYY-MM-DD HH.MM.SS.{ext}"` in local time, the same shape as on Windows.
 pub fn local_timestamp_filename(prefix: &str, ext: &str) -> String {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
@@ -131,6 +138,11 @@ pub fn merge_sps_pps(sps_pps: &mut Vec<u8>, data: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mac_cannot_record_yet() {
+        assert!(!supported());
+    }
 
     #[test]
     fn mp4_recorder_reports_unsupported() {

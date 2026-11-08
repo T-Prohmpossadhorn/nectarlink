@@ -633,6 +633,11 @@ pub fn recording_started_ms(window: &Window) -> i64 {
 
 /// Starts or stops MP4 recording for `window`.
 pub fn toggle_recording(window: Window) {
+    // A Mac has no recorder yet. The window hides the button and Ctrl+R, and this
+    // stops any other caller from showing a recording that never saves.
+    if !crate::win::mp4::supported() {
+        return;
+    }
     if is_recording(&window) {
         stop_recording(window);
         return;
@@ -2531,6 +2536,16 @@ mod tests {
         gate.reset();
         assert_eq!(gate.packet(usize::MAX, true), (true, false));
         assert_eq!(gate.packet(0, false), (true, false));
+    }
+
+    /// A Mac has no recorder: asking for one changes nothing and starts nothing.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn toggle_recording_does_nothing_on_a_mac() {
+        let window = super::Window::screen(nectarlink_core::DeviceId([9; 32]));
+        super::toggle_recording(window);
+        assert!(!super::is_recording(&window));
+        assert_eq!(super::recording_started_ms(&window), 0);
     }
 
     use super::{

@@ -103,6 +103,17 @@ You can also view (and optionally control) your PC's desktop from your phone:
 - **Session log in `Timeline`**: When a mirroring session ends, `Timeline` records a single summary entry noting the device name and session duration (without storing any video or screenshots).
 - **Consent and visibility**: Phone-to-PC mirroring shows a persistent **Sharing your screen with `<PC>`** notification on your phone with a **Stop** button (and an **app is open in a window on a PC** notification with **Close all** when using `app window` streaming). PC-to-phone reverse mirroring requires PC consent and shows a persistent **Stop sharing** banner on the PC.
 
+## On macOS
+
+The Mac can show your phone's screen and phone apps in windows. This is a preview and it is not tested on a Mac yet. The same steps and the same phone requirements apply, with these differences:
+
+- **Recording is not available.** The Mac has no MP4 recorder yet. The `mirror` window has no record button and no record shortcut, and nothing is saved as a video. Screenshots should still work. This is not tested on a Mac yet.
+- **The shortcuts use the Command key.** The screenshot shortcuts are `Command+Shift+C` and `Command+S`. The toolbar names them.
+- **Your phone asks for its screen-capture permission.** Unless the phone is at `Elevated`, tap the notification on the phone and accept the Android screen-sharing dialog within 2 minutes. The phone needs notifications allowed to show it. For sound, allow the phone's `RECORD_AUDIO` request. Without it, the screen is shared without sound.
+- **Sending touch and keys back to the phone needs a phone setting.** Turn on the phone's Accessibility service (`Assist`) or `Elevated`. This is the phone's setting. It has nothing to do with the Accessibility switch for the Mac in System Settings.
+- **App windows need `Elevated` on Android 11 or newer**, as on the other systems.
+- **The Mac decodes H.264 only.** It does not offer H.265 yet.
+
 ## Limits
 
 - **`FLAG_SECURE` Protected Content**: Android apps that set the `FLAG_SECURE` window flag (such as banking apps, password managers, and DRM-protected video streaming apps like Netflix) render black inside `Standard` and `Assist` `MediaProjection` streams by Android OS design.

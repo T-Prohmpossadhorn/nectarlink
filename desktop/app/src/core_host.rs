@@ -151,6 +151,19 @@ pub fn compute_capabilities(
             }
         }
     }
+    // A Mac shows the phone's screen and sound with its own decoder (VideoToolbox)
+    // and player (AudioToolbox). Kept apart from the block above, which also carries
+    // storage, recorder, deck and PC audio that a Mac does not have. There is no
+    // `mirror.decode.hevc` here: the Mac decoder takes H.264 only.
+    // Core's feature matrix also reads `mirror.view` for `mirroring.control` (touch
+    // and keys back to the phone) and `mirroring.app_windows`, so this unlocks those
+    // too, when the phone offers them. `mirror.listen` unlocks `mirroring.audio` and
+    // `mirroring.sound`.
+    #[cfg(target_os = "macos")]
+    {
+        caps.push(nectarlink_core::MIRROR_VIEW.into());
+        caps.push(nectarlink_core::MIRROR_LISTEN.into());
+    }
     // The phone's microphone plays on any output (audio queue on a Mac).
     caps.push(nectarlink_core::MIC_LISTEN.into());
     #[cfg(any(windows, target_os = "linux"))]
@@ -465,9 +478,19 @@ mod tests {
     #[test]
     fn macos_advertises_only_supported_capabilities() {
         let caps = compute_capabilities(None);
+        // The Mac shows the phone's screen and plays its sound.
+        assert!(caps.contains(&nectarlink_core::MIRROR_VIEW.into()), "macOS must advertise mirror.view");
+        assert!(caps.contains(&nectarlink_core::MIRROR_LISTEN.into()), "macOS must advertise mirror.listen");
+        // The Mac decoder takes H.264 only. Capture and input depend on a paired
+        // device's toggles, and a test process has no node to read them from.
+        assert!(
+            !caps.contains(&nectarlink_core::MIRROR_HEVC.into()),
+            "macOS must not advertise mirror.decode.hevc"
+        );
+        assert!(!caps.contains(&nectarlink_core::MIRROR_CAPTURE.into()), "no node, so no mirror.capture");
+        assert!(!caps.contains(&nectarlink_core::MIRROR_INPUT.into()), "no node, so no mirror.input");
+        assert!(!caps.contains(&nectarlink_core::INPUT_INJECT.into()), "no node, so no input.inject");
         // Ensure unsupported features on macOS are never advertised
-        assert!(!caps.contains(&"mirror.view".into()), "macOS must not advertise mirror.view");
-        assert!(!caps.contains(&"mirror.listen".into()), "macOS must not advertise mirror.listen");
         assert!(!caps.contains(&"media.control".into()), "macOS must not advertise media.control");
         assert!(
             !caps.contains(&nectarlink_core::STORAGE_MOUNT.into()),
