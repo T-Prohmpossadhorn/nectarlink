@@ -110,7 +110,7 @@ Each priority is followed by the power level a feature needs: Basic, Assist or E
 | Auto-reconnect everywhere: PC wake from sleep, Wi-Fi changes, phone reboot, app updates (done) | P0 |
 | Works over **Wi-Fi, Ethernet-to-Wi-Fi, USB**, and **away from home** (hole punching + relay, opt-in, self-hostable) (done) (USB transport verified on Android emulator; physical USB cable on a real phone not yet verified) | P0 (LAN/USB), P1 (away) |
 | **Connection Doctor**: detects firewall, Public network profile, AP isolation, VPN, battery optimization, OEM killers. One-click fixes plus per-OEM guides (done) | P0 |
-| Companion Device Manager association + PC BLE beacon, so the phone app is woken when the PC is nearby: implemented (`win/ble_beacon.rs` + `CompanionDeviceHelper.kt`), **not verified end-to-end on real BLE hardware** (Android emulator lacks a BLE radio) | P1 |
+| Companion Device Manager association + PC BLE beacon, so the phone app is woken when the PC is nearby: implemented for Windows and Linux only; a Mac cannot send the frame (`beacon.rs` shared frame code, `win/ble_beacon.rs`, `linux/ble_beacon.rs`, `PcCompanion.kt`; format in `docs/protocol/discovery.md`), **not verified end-to-end on real BLE hardware** (Android emulator lacks a BLE radio) | P1 |
 | Bluetooth fallback link for low-bandwidth features (notifications, SMS, calls) when there's no shared network: deferred (requires physical Bluetooth RFCOMM radio on both endpoints; Android emulator lacks a BT controller) | P2 |
 | Multiple phones per PC, multiple PCs per phone, per-device feature permissions (done) | P0 (model), P1 (UI) |
 
@@ -392,7 +392,7 @@ Everything ships inside the single NectarLink APK. "Elevated" is **not a separat
 | Voice typing / Deck / air mouse into PC | `SendInput` (Unicode text + mouse), virtual-key macros |
 | Unlock with phone | Credential provider (`ICredentialProvider`) |
 | "Ping me when done" | Process wait handles, BITS/download folder watchers, CLI hooks |
-| Proximity / wake | `BluetoothLEAdvertisementPublisher` / watcher |
+| Proximity / wake | `BluetoothLEAdvertisementPublisher` / watcher (Windows and Linux only; macOS cannot send the frame) |
 | Window materials | Mica / Mica Alt / Acrylic via `DwmSetWindowAttribute` (DWMWA_SYSTEMBACKDROP_TYPE) |
 | Firewall, startup, tray, jump list, hotkeys | installer custom action, Run key / StartupTask, Shell_NotifyIcon, `ITaskbarList`, `RegisterHotKey` |
 | Power events | `RegisterPowerSettingNotification`, network list manager |
@@ -651,7 +651,7 @@ Each phase ends with a usable, releasable product. Phase sizes are relative; act
 
 | # | Feature | Target & Constraints | Architecture & Implementation Spec |
 |---|---|---|---|
-| **2.1** | **Proximity Lock (BLE RSSI Ranging)** (§3.11) | Lock Windows automatically when the paired phone walks away. | Continuous BLE advertisement RSSI smoothing (EMA filter + hysteresis threshold, e.g. `< -82 dBm` for `> 12 s` or link loss while on battery) in `desktop/app/src/win/ble_beacon.rs` + Android BLE scanner, triggering `LockWorkStation()` when enabled in Settings. |
+| **2.1** | **Proximity Lock (BLE RSSI Ranging)** (§3.11) | Lock Windows automatically when the paired phone walks away. | Continuous BLE advertisement RSSI smoothing (EMA filter + hysteresis threshold, e.g. `< -82 dBm` for `> 12 s` or link loss while on battery) in `desktop/app/src/win/ble_beacon.rs` and `desktop/app/src/linux/ble_beacon.rs` (shared code in `desktop/app/src/beacon.rs`) + Android BLE scanner, triggering `LockWorkStation()` when enabled in Settings. |
 | **2.2** | **Unlock PC with Phone Fingerprint (`desktop/credprov`)** (§3.10) | Unlock Windows lock screen via phone `BiometricPrompt`. | Isolated Windows `ICredentialProvider` DLL (`desktop/credprov`) communicating over a local named pipe with the NectarLink service, issuing a 256-bit nonce signed by an Android Keystore `StrongBox` Ed25519/ECDSA key bound to `BiometricPrompt`. Requires external security review before enabling by default. |
 | **2.3** | **Bluetooth RFCOMM Fallback Link** (§3.1) | Keep notifications, SMS, and call alerts alive when no Wi-Fi/LAN or USB is available. | Classic Bluetooth RFCOMM socket transport (`Windows.Devices.Bluetooth.Rfcomm` ↔ Android `BluetoothAdapter.listenUsingRfcommWithServiceRecord`) multiplexed into `nectarlink-core` as a low-bandwidth control path. |
 | **2.4** | **Tablet / Phone as Second Monitor (`IddCx`)** (§3.12) | Extend the Windows desktop onto an Android tablet/phone as a virtual display. | Pair an open-source signed UMDF2 `IddCx` indirect display driver on Windows with the Reverse Mirroring pipeline (§1.2) capturing the virtual display output at 60 to 120 fps. |

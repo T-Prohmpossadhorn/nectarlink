@@ -10,6 +10,10 @@
 
 mod automations;
 mod battery;
+// The macOS beacon is a stub that does not use the shared frame code, so a Mac
+// build compiles it only for the tests. Windows and Linux use every item.
+#[cfg(any(not(target_os = "macos"), test))]
+mod beacon;
 mod bridge;
 mod calls;
 mod clipboard;

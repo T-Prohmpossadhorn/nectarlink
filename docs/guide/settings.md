@@ -237,7 +237,7 @@ Each permission row shows its live state (**On** / **Allowed** vs **Off**) and a
 | **Control from your PC › Do Not Disturb and silent mode** | Grants Notification Policy Access so your PC can toggle Do Not Disturb and set the ringer to silent. |
 | **Control from your PC › Screen brightness** | Grants Modify system settings (`WRITE_SETTINGS`) so your PC can adjust your phone's screen brightness slider. |
 | **Background & battery › Stay reachable in the background** | Requests Android's unrestricted battery usage exemption (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) and displays step-by-step instructions tailored to your phone's manufacturer (Samsung, Xiaomi, OnePlus, Oppo/Realme, Vivo, Huawei, Pixel) with a **Battery settings** button. |
-| **Background & battery › Wake when PC is nearby (Companion Device)** | Associates your paired PC with Android's `CompanionDeviceManager` so Android wakes NectarLink automatically when your PC's Bluetooth LE beacon is in range. |
+| **Background & battery › Wake when PC is nearby (Companion Device)** | Associates your paired PC with Android's `CompanionDeviceManager` so Android wakes NectarLink automatically when your PC's Bluetooth LE beacon is in range. Windows and Linux PCs only: a Mac does not send the beacon. |
 | **Calls, contacts and messages › Calls on your PC** | Grants phone state, call log, and call control permissions. |
 | **Calls, contacts and messages › Contacts on your PC** | Grants contact read access so names and avatars appear in Calls and Messages on your PC. |
 | **Calls, contacts and messages › Text from your PC** | Grants SMS permissions to read and send texts on your PC. |
