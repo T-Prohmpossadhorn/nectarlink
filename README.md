@@ -163,6 +163,7 @@ in light and dark. In English, German, Turkish, Simplified Chinese, Brazilian Po
 | Phone quick toggles & volume | Yes | Yes | Yes |
 | Clipboard text & image sync | Yes | Yes | Yes (two-way text, incoming photo) |
 | System notifications | Yes | Yes | Yes (system banners) |
+| Phone as touchpad, keyboard & presentation remote | Yes | Yes | Yes (needs the Accessibility switch; no volume or media keys yet) |
 | Phone screen mirroring | Yes | Yes | Not yet (in development) |
 | Screen recording (MP4) | Yes | Yes | Not yet |
 | PC audio stream / phone mic | Yes | Yes | Not yet |

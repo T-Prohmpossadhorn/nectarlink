@@ -1718,6 +1718,12 @@ impl qobject::AppController {
             if !on {
                 crate::remote::stop_all();
             }
+            // macOS drops input events until the user allows this app under
+            // Accessibility: ask now, and offer input to the phone once they do.
+            #[cfg(target_os = "macos")]
+            if on && !crate::win::input::request_access() {
+                crate::win::input::watch_access(core_host::refresh_capabilities);
+            }
             core_host::host().hub.update(|s| {
                 if s.remote_prompt == Some(id) {
                     s.remote_prompt = None;

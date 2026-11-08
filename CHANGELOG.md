@@ -76,6 +76,12 @@ change things that need a step from you, and its notes say so.
   `ARCH=universal` joins the two release builds into one NectarLink.app, and CI keeps it as a
   download. It is signed ad hoc, so the first time it opens, Control-click it in Finder and
   choose Open.
+- **Use the Mac from the phone.** On macOS, the phone works as touchpad, keyboard and
+  presentation remote, and Type on phone and Deck key presses reach the Mac. When you turn
+  on Remote input for a phone, macOS asks you to allow NectarLink under System Settings ›
+  Privacy & Security › Accessibility, and the phone offers input once you do. Volume and
+  media keys are not there yet. The Mac's own mouse does not freeze while the phone sends
+  input.
 
 ### Fixed
 

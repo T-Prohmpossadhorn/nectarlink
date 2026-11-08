@@ -114,6 +114,10 @@ SlideAction  = "next" | "previous" | "start" | "stop" | "black"
   - Named shortcuts (with empty `mods`): `copy` (`Ctrl+C`), `paste`
     (`Ctrl+V`), `cut` (`Ctrl+X`), `undo` (`Ctrl+Z`), `select_all` (`Ctrl+A`),
     `task_view` (`Win+Tab`), `lock` (`Win+L`).
+  - On macOS, `win` is Command and `alt` is Option, the aliases above use
+    Command (`task_view` is Mission Control, `Ctrl+Up`), and `lock` locks the
+    screen. The app needs the Accessibility permission to post input, and it
+    advertises `input.inject` only while it has it.
 - **Presentation (`slide`):** `next` (next slide), `previous` (previous
   slide), `start` (`F5`), `stop` (`Escape`), `black` (`B`).
 - **Laser pointer (`laser`):** when `on` is `true`, `x` and `y` are finite
