@@ -9,7 +9,8 @@
 class QGuiApplication;
 
 // Creates the Qt application instance (`QApplication` on Linux so
-// `QSystemTrayIcon` and `QMenu` work; `QGuiApplication` elsewhere).
+// `QSystemTrayIcon` and `QMenu` work, and on macOS for Qt Widgets;
+// `QGuiApplication` elsewhere).
 std::unique_ptr<QGuiApplication> create_qt_app();
 
 // Qt setup that must happen before QGuiApplication is created.

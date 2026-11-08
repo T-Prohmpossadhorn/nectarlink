@@ -107,6 +107,13 @@ PLIST
 # Qt frameworks, plugins and the QML modules the app imports.
 "$MACDEPLOYQT" "$APP" -qmldir=desktop/app/qml -always-overwrite
 
+# The executable links Qt Widgets (it creates a QApplication). macdeployqt finds
+# that by reading the executable, but fail here if the framework is missing.
+[[ -d "$APP/Contents/Frameworks/QtWidgets.framework" ]] || {
+    echo "QtWidgets.framework is missing from the bundle" >&2
+    exit 1
+}
+
 # Ad-hoc signature: no identity, but Apple Silicon won't run unsigned code.
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict "$APP"

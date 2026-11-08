@@ -33,6 +33,12 @@
 #include <malloc.h>
 #endif
 
+#ifdef __APPLE__
+// Only `QApplication` is needed here. The tray and menu classes stay Linux-only.
+#include <QtWidgets/QApplication>
+#include <crt_externs.h>
+#endif
+
 #ifdef __linux__
 #include <QtCore/QBuffer>
 #include <QtCore/QMetaObject>
@@ -704,6 +710,17 @@ std::unique_ptr<QGuiApplication> create_qt_app()
         });
     }
     return app;
+#elif defined(__APPLE__)
+    // Same class as Linux, so the menu-bar item and menus can use Qt Widgets later.
+    // Nothing uses a widget yet. The app still shows only QML windows.
+    // Unlike Linux, macOS passes the real command line on: App.qml reads
+    // `Qt.application.arguments` (for example `--minimized`), as it did before
+    // when cxx-qt-lib built the application from the process arguments.
+    static int s_mac_argc = *_NSGetArgc();
+    static char **s_mac_argv = *_NSGetArgv();
+    if (s_mac_argc < 1 || s_mac_argv == nullptr)
+        return std::unique_ptr<QGuiApplication>(new QApplication(s_argc, s_argv));
+    return std::unique_ptr<QGuiApplication>(new QApplication(s_mac_argc, s_mac_argv));
 #else
     return std::make_unique<QGuiApplication>(s_argc, s_argv);
 #endif
