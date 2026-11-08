@@ -57,7 +57,7 @@ change things that need a step from you, and its notes say so.
   in Settings › Camera & Audio. This is not tested on a Mac with sound yet. To use it as a
   microphone in other apps, install a virtual audio cable and pick it as the output.
   NectarLink has no virtual microphone of its own on a
-  Mac. Phone sound in a mirror window and PC sound on the phone do not work on a Mac yet.
+  Mac. PC sound on the phone does not work on a Mac yet.
   The Deck now lists the real outputs of the Mac.
 - **A Mac picks a virtual audio cable for your phone's microphone.** When you have not
   chosen an output, NectarLink now plays the microphone into a cable named BlackHole,
@@ -65,9 +65,10 @@ change things that need a step from you, and its notes say so.
   an example on a Mac. On Linux, it no longer names VB-CABLE. This is not tested on a Mac
   with sound yet.
 - **A Mac can show your phone's screen and apps.** The Mac now tells your phone that it
-  can show its screen, so the Mirror screen tile and the Apps page should work. You can
+  can show its screen, so the Mirror screen tile and the Apps page should work. You may
   also be able to tap, scroll and type on the phone from the Mac, and to open an app in a
-  window of its own. The phone's sound should play on the Mac. This is not tested on a Mac yet.
+  window of its own, if the phone allows it. The phone's sound should play on the Mac.
+  This is not tested on a Mac yet.
   Recording to a video file is not available on a Mac, so the record button and the
   record shortcut are hidden there. The phone asks for its screen-capture permission each
   time, unless it is at the Elevated level. The screenshot buttons name Command keys.

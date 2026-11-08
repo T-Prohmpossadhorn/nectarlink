@@ -5923,9 +5923,19 @@ Nó cần gì
         <translation>Màn hình điện thoại · NectarLink</translation>
     </message>
     <message>
+        <location filename="../../qml/MirrorWindow.qml" line="379"/>
+        <source>Copy screenshot (%1)</source>
+        <translation>Sao chép ảnh chụp màn hình (%1)</translation>
+    </message>
+    <message>
         <location filename="../../qml/MirrorWindow.qml" line="376"/>
         <source>Copy screenshot (Ctrl+Shift+C)</source>
         <translation>Sao chép ảnh chụp màn hình (Ctrl+Shift+C)</translation>
+    </message>
+    <message>
+        <location filename="../../qml/MirrorWindow.qml" line="388"/>
+        <source>Save screenshot (%1)</source>
+        <translation>Lưu ảnh chụp màn hình (%1)</translation>
     </message>
     <message>
         <location filename="../../qml/MirrorWindow.qml" line="383"/>
