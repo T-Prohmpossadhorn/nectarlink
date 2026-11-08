@@ -37,6 +37,7 @@
 #include "native_window.h"
 
 #include <QtCore/QElapsedTimer>
+#include <QtGui/QFileOpenEvent>
 #include <QtGui/QStyleHints>
 #include <QtGui/QWindow>
 #include <crt_externs.h>
@@ -803,6 +804,77 @@ bool runOnQtMainThreadSync(F &&fn, uint32_t timeout_ms = 500)
 } // namespace
 #endif
 
+#ifdef __APPLE__
+namespace {
+// What Finder and the system ask the app to open: the files opened with it or
+// dropped on its Dock icon, and `nectarlink://` links. Qt reports each as a
+// `QFileOpenEvent` (the system sends Apple Events, never command-line
+// arguments). The filter below keeps them here until Rust takes them with
+// `mac_open_urls_wait`, so an event that comes before Rust asks is not lost.
+// Only the count is ever logged, never a path or a link.
+struct OpenUrlQueue {
+    // One drop of many files is many events, and a runaway sender must not
+    // fill memory. More than this is dropped.
+    static constexpr size_t kMaxWaiting = 1024;
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::deque<std::string> urls;
+};
+
+OpenUrlQueue &openUrlQueue()
+{
+    static OpenUrlQueue *queue = new OpenUrlQueue();
+    return *queue;
+}
+
+class OpenEventFilter : public QObject
+{
+public:
+    explicit OpenEventFilter(QObject *parent)
+        : QObject(parent)
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() != QEvent::FileOpen || watched != QCoreApplication::instance())
+            return false;
+        auto *open = static_cast<QFileOpenEvent *>(event);
+        QUrl url = open->url();
+        // A file the system names by path only.
+        if (url.isEmpty() && !open->file().isEmpty())
+            url = QUrl::fromLocalFile(open->file());
+        if (url.isEmpty())
+            return true;
+        // Fully encoded UTF-8: Rust decodes it byte for byte.
+        const QByteArray encoded = url.toEncoded(QUrl::FullyEncoded);
+        auto &queue = openUrlQueue();
+        {
+            std::lock_guard<std::mutex> lock(queue.mutex);
+            if (queue.urls.size() < OpenUrlQueue::kMaxWaiting)
+                queue.urls.emplace_back(encoded.constData(), static_cast<size_t>(encoded.size()));
+        }
+        queue.cv.notify_all();
+        return true;
+    }
+};
+
+// Once, on the main thread, before the event loop starts (`create_qt_app`):
+// Qt delivers an event that came with the launch only when the loop runs, so
+// the filter is there first. Whether Qt keeps events that came before the
+// filter is a hardware check.
+void installOpenEventFilter(QCoreApplication *app)
+{
+    static bool installed = false;
+    if (installed || !app)
+        return;
+    installed = true;
+    app->installEventFilter(new OpenEventFilter(app));
+}
+} // namespace
+#endif
+
 std::unique_ptr<QGuiApplication> create_qt_app()
 {
     static int s_argc = 1;
@@ -835,9 +907,14 @@ std::unique_ptr<QGuiApplication> create_qt_app()
     // when cxx-qt-lib built the application from the process arguments.
     static int s_mac_argc = *_NSGetArgc();
     static char **s_mac_argv = *_NSGetArgv();
+    std::unique_ptr<QGuiApplication> app;
     if (s_mac_argc < 1 || s_mac_argv == nullptr)
-        return std::unique_ptr<QGuiApplication>(new QApplication(s_argc, s_argv));
-    return std::unique_ptr<QGuiApplication>(new QApplication(s_mac_argc, s_mac_argv));
+        app.reset(new QApplication(s_argc, s_argv));
+    else
+        app.reset(new QApplication(s_mac_argc, s_mac_argv));
+    // Finder open events and `nectarlink://` links. Before `exec`.
+    installOpenEventFilter(app.get());
+    return app;
 #else
     return std::make_unique<QGuiApplication>(s_argc, s_argv);
 #endif
@@ -1087,6 +1164,27 @@ void qt_tray_teardown()
         s.pauseAction = nullptr;
     });
 #endif
+}
+
+// The files and links that Finder or the system asked the app to open (macOS),
+// as fully encoded URLs. Waits up to `timeout_ms` when none is waiting, then
+// returns all that are. Empty on other systems.
+rust::Vec<rust::String> mac_open_urls_wait(uint32_t timeout_ms)
+{
+    rust::Vec<rust::String> result;
+#ifdef __APPLE__
+    auto &queue = openUrlQueue();
+    std::unique_lock<std::mutex> lock(queue.mutex);
+    if (queue.urls.empty() && timeout_ms > 0)
+        queue.cv.wait_for(lock, std::chrono::milliseconds(timeout_ms));
+    while (!queue.urls.empty()) {
+        result.push_back(rust::String::lossy(queue.urls.front()));
+        queue.urls.pop_front();
+    }
+#else
+    (void)timeout_ms;
+#endif
+    return result;
 }
 
 rust::String qt_tray_wait_action(uint32_t timeout_ms)

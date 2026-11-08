@@ -3,10 +3,9 @@
 //! links, web links, `nectarlink://` links, or text) and the share that another
 //! launch left in `activated-share.json`.
 //!
-//! Nothing registers this as a system share target yet. The app bundle
-//! declares the `nectarlink://` scheme in its Info.plist, but nothing handles
-//! the link yet. Finder open events and the share picker arrive later. All of
-//! them use the same payload.
+//! Finder open events and `nectarlink://` links (`open_events`) use the same
+//! payload, through [`payload_from_open_event`]. Nothing registers this as a
+//! system share target, and the share picker arrives later.
 
 use std::{
     ffi::OsString,
@@ -142,6 +141,25 @@ pub fn parse_targets(targets: &[String]) -> SharedPayload {
     payload
 }
 
+/// The payload for the URLs of one Finder open event (files opened with the
+/// app or dropped on its Dock icon, `nectarlink://` links), or `None` when
+/// nothing in them is a share. Only a `file://` link to this Mac and a
+/// `nectarlink:` link count: any other link is not something the system
+/// meant to open here, so it never becomes text sent to a phone.
+pub fn payload_from_open_event(urls: &[String]) -> Option<SharedPayload> {
+    let kept: Vec<String> = urls
+        .iter()
+        .filter(|url| {
+            let url = url.trim();
+            parse_file_uri(url).is_some()
+                || (starts_with_ignore_case(url, "nectarlink:") && is_share_url(url))
+        })
+        .cloned()
+        .collect();
+    let payload = parse_targets(&kept);
+    (!payload.is_empty()).then_some(payload)
+}
+
 /// Takes the share that another launch left in `data_dir`, if there is one.
 /// The file is removed whether or not it can be read, so a bad one is not
 /// tried again. A link or an oversized file is removed and ignored.
@@ -253,6 +271,52 @@ mod tests {
             parse_targets(&targets(&[r"C:\Users\Alice\photo.jpg", r"D:\notes.txt", "and/or", "x\\y"]));
         assert!(payload.files.is_empty());
         assert_eq!(payload.text.as_deref(), Some(r"C:\Users\Alice\photo.jpg D:\notes.txt and/or x\y"));
+    }
+
+    #[test]
+    fn open_event_files_become_one_payload() {
+        let payload = payload_from_open_event(&targets(&[
+            "file:///Users/alice/My%20Documents/a.pdf",
+            "file:///tmp/b.png",
+        ]))
+        .unwrap();
+        assert_eq!(
+            payload.files,
+            vec![PathBuf::from("/Users/alice/My Documents/a.pdf"), PathBuf::from("/tmp/b.png")]
+        );
+        assert!(payload.url.is_none());
+        assert!(payload.text.is_none());
+    }
+
+    #[test]
+    fn open_event_link_is_a_link_and_empty_input_is_nothing() {
+        let payload = payload_from_open_event(&targets(&["nectarlink://share?text=hello"])).unwrap();
+        assert_eq!(payload.url.as_deref(), Some("nectarlink://share?text=hello"));
+        assert!(payload.files.is_empty());
+        assert!(payload_from_open_event(&[]).is_none());
+        assert!(payload_from_open_event(&targets(&["", "  "])).is_none());
+    }
+
+    #[test]
+    fn open_event_ignores_what_is_not_a_file_or_a_nectarlink_link() {
+        // Other schemes, plain text, paths without a scheme, other computers,
+        // a bare scheme and a link with a space are never shared.
+        let none = payload_from_open_event(&targets(&[
+            "https://example.com",
+            "geo:48.85,2.35",
+            "hello world",
+            "/tmp/plain-path",
+            "file://server/share/a.txt",
+            "nectarlink:",
+            "nectarlink://a b",
+        ]));
+        assert!(none.is_none());
+        // The good ones in the same event still go through.
+        let payload =
+            payload_from_open_event(&targets(&["https://example.com", "file:///tmp/c.txt"])).unwrap();
+        assert_eq!(payload.files, vec![PathBuf::from("/tmp/c.txt")]);
+        assert!(payload.url.is_none());
+        assert!(payload.text.is_none());
     }
 
     #[test]

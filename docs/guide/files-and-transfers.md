@@ -27,6 +27,7 @@ You can send files or entire folders from your PC using any of these entry point
 3. **Home screen button**: Click **Send files** on the PC Home screen and pick files or folders.
 4. **File Explorer `Send to` menu**: Right-click any file or folder in Windows File Explorer, choose **Send to**, and click your phone's name.
    On Linux, right-click files or folders and choose **Send to *your phone* (NectarLink)**: under **Scripts** in GNOME Files, and in the menu itself in Dolphin, Nemo, Thunar and Caja (Caja needs the `caja-actions` package).
+   On a Mac, use **Open With** in Finder and choose NectarLink, or drop files on the NectarLink icon in the Dock. NectarLink sends them to your phone. It does not become the default app for any file type. This is not tested on a Mac yet.
 5. **Command Palette or CLI**: Press `Ctrl+Alt+Space` and choose **Send files to phone**, or run `nectarlink send <path>` in a terminal.
 
 Received files on your phone are saved to `Download/Nectarlink` (preserving subfolder structure when you send a folder).
