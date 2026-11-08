@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! SystemConfiguration dynamic store notifications. The declarations follow
-//! the macOS SDK headers (SCDynamicStore.h, CFBase.h, CFArray.h, CFString.h,
+//! SystemConfiguration dynamic store notifications and the network interface
+//! list. The declarations follow the macOS SDK headers (SCDynamicStore.h,
+//! SCNetworkConfiguration.h, CFBase.h, CFArray.h, CFString.h,
 //! dispatch/queue.h). The store is delivered on a private serial dispatch
 //! queue, so no run loop and no main thread is needed.
 
@@ -42,6 +43,10 @@ unsafe extern "C" {
     static kCFTypeArrayCallBacks: u8;
 
     fn CFRelease(cf: CFTypeRef);
+    fn CFEqual(a: CFTypeRef, b: CFTypeRef) -> Boolean;
+    fn CFArrayGetCount(array: CFTypeRef) -> CFIndex;
+    fn CFArrayGetValueAtIndex(array: CFTypeRef, index: CFIndex) -> CFTypeRef;
+    fn CFStringGetCString(s: CFTypeRef, buffer: *mut c_char, size: CFIndex, encoding: u32) -> Boolean;
     fn CFStringCreateWithCString(alloc: CFTypeRef, c_str: *const c_char, encoding: u32) -> CFTypeRef;
     fn CFArrayCreate(
         allocator: CFTypeRef,
@@ -61,6 +66,14 @@ unsafe extern "C" {
     ) -> StoreRef;
     fn SCDynamicStoreSetNotificationKeys(store: StoreRef, keys: CFTypeRef, patterns: CFTypeRef) -> Boolean;
     fn SCDynamicStoreSetDispatchQueue(store: StoreRef, queue: QueueRef) -> Boolean;
+
+    static kSCNetworkInterfaceTypeEthernet: CFTypeRef;
+    static kSCNetworkInterfaceTypeIEEE80211: CFTypeRef;
+    fn SCNetworkInterfaceCopyAll() -> CFTypeRef;
+    fn SCNetworkInterfaceGetInterfaceType(interface: CFTypeRef) -> CFTypeRef;
+    fn SCNetworkInterfaceGetBSDName(interface: CFTypeRef) -> CFTypeRef;
+    fn SCNetworkInterfaceGetHardwareAddressString(interface: CFTypeRef) -> CFTypeRef;
+    fn SCNetworkInterfaceGetLocalizedDisplayName(interface: CFTypeRef) -> CFTypeRef;
 }
 
 unsafe extern "C" {
@@ -107,6 +120,82 @@ fn release_all(items: &[CFTypeRef]) {
         // SAFETY: each item is an owned CF object that is released once.
         unsafe { CFRelease(*item) };
     }
+}
+
+/// One Ethernet or Wi-Fi network interface as the system lists it. The
+/// hardware address is the raw text; the caller parses it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Interface {
+    pub bsd_name: String,
+    pub label: String,
+    pub hardware_address: String,
+    pub wired: bool,
+}
+
+/// A UTF-8 copy of a CF string, `None` for NULL or a string that does not fit.
+fn cf_to_string(cf: CFTypeRef) -> Option<String> {
+    if cf.is_null() {
+        return None;
+    }
+    let mut buf = [0 as c_char; 256];
+    // SAFETY: `cf` is a CF string owned by someone else for this call; `buf`
+    // is writable for its full length.
+    let ok =
+        unsafe { CFStringGetCString(cf, buf.as_mut_ptr(), buf.len() as CFIndex, CF_STRING_ENCODING_UTF8) };
+    if ok == 0 {
+        return None;
+    }
+    // SAFETY: a successful call wrote a NUL-terminated string into `buf`.
+    let text = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) };
+    Some(text.to_string_lossy().into_owned())
+}
+
+/// The Ethernet and Wi-Fi interfaces from `SCNetworkInterfaceCopyAll`. The
+/// call also returns Bluetooth PAN, Thunderbolt Bridge, VLAN and bond
+/// interfaces; those are left out here by type. All strings are copied
+/// before the array is released. Needs no run loop and no main thread.
+pub fn network_interfaces() -> Vec<Interface> {
+    let mut out = Vec::new();
+    // SAFETY: the call takes no arguments and returns an owned array or NULL.
+    let all = unsafe { SCNetworkInterfaceCopyAll() };
+    if all.is_null() {
+        return out;
+    }
+    // SAFETY: `all` is a valid CF array. Every `Get` call below follows the
+    // CF Get rule: the result belongs to the interface (and so to the array),
+    // is not released here, and is copied before the array is released. The
+    // two type constants are immutable CF strings that live as long as the
+    // process.
+    unsafe {
+        for i in 0..CFArrayGetCount(all) {
+            let interface = CFArrayGetValueAtIndex(all, i);
+            if interface.is_null() {
+                continue;
+            }
+            let kind = SCNetworkInterfaceGetInterfaceType(interface);
+            if kind.is_null() {
+                continue;
+            }
+            let wired = if CFEqual(kind, kSCNetworkInterfaceTypeEthernet) != 0 {
+                true
+            } else if CFEqual(kind, kSCNetworkInterfaceTypeIEEE80211) != 0 {
+                false
+            } else {
+                continue;
+            };
+            let (Some(bsd_name), Some(hardware_address)) = (
+                cf_to_string(SCNetworkInterfaceGetBSDName(interface)),
+                cf_to_string(SCNetworkInterfaceGetHardwareAddressString(interface)),
+            ) else {
+                continue;
+            };
+            let label =
+                cf_to_string(SCNetworkInterfaceGetLocalizedDisplayName(interface)).unwrap_or_default();
+            out.push(Interface { bsd_name, label, hardware_address, wired });
+        }
+        CFRelease(all);
+    }
+    out
 }
 
 /// A running dynamic store subscription. Stop it with [`Subscription::stop`].

@@ -112,9 +112,14 @@ pub fn compute_capabilities(
         nectarlink_core::SMS_SHOW.into(),
         nectarlink_core::TOGGLES_SHOW.into(),
     ];
+    // Advisory only: core never checks it. Windows and Linux always send it;
+    // a Mac only after a read found an adapter with a valid hardware address.
+    #[cfg(any(windows, target_os = "linux"))]
+    caps.push(nectarlink_core::PC_WAKE.into());
+    #[cfg(target_os = "macos")]
+    push_wake_cap(&mut caps, crate::win::wol::wake_cap_ready());
     #[cfg(any(windows, target_os = "linux"))]
     {
-        caps.push(nectarlink_core::PC_WAKE.into());
         caps.push("media.control".into());
         caps.push(nectarlink_core::STORAGE_MOUNT.into());
         caps.push(nectarlink_core::STORAGE_READ.into());
@@ -186,6 +191,14 @@ pub fn compute_capabilities(
         caps.push(nectarlink_core::WEBCAM_ADDON_VCAM.into());
     }
     caps
+}
+
+/// Adds `pc.wake` to `caps` when `ready` (a Mac with a valid hardware address).
+#[cfg(target_os = "macos")]
+fn push_wake_cap(caps: &mut Vec<String>, ready: bool) {
+    if ready {
+        caps.push(nectarlink_core::PC_WAKE.into());
+    }
 }
 
 /// Recomputes and broadcasts this PC's advertised capabilities when feature toggles
@@ -413,7 +426,14 @@ fn this_device() -> DeviceInfo {
 /// Re-reads physical network adapters and their Wake-on-LAN settings, updates
 /// the UI state, and sends updated `pc.wake_info` to connected phones if changed.
 pub async fn refresh_wake() {
+    #[cfg(target_os = "macos")]
+    let cap_before = crate::win::wol::wake_cap_ready();
     let wake = crate::win::wol::query_wake_status();
+    // A Mac that started with no network gains `pc.wake` once an adapter shows up.
+    #[cfg(target_os = "macos")]
+    if crate::win::wol::wake_cap_ready() != cap_before {
+        refresh_capabilities();
+    }
     let info = wake.info.clone();
     // With no adapter up (Wi-Fi dropping as the PC goes to sleep, a network
     // change in progress) there's nothing to read, not a PC that can't be
@@ -475,7 +495,17 @@ mod tests {
             "macOS must not advertise media.stream"
         );
         assert!(!caps.contains(&nectarlink_core::MIC_LISTEN.into()), "macOS must not advertise mic.listen");
-        assert!(!caps.contains(&nectarlink_core::PC_WAKE.into()), "macOS must not advertise pc.wake");
+        // `pc.wake` depends on this Mac's adapters. No adapter is read in a test
+        // process, so it must be absent here. The switch is tested below.
+        assert!(!caps.contains(&nectarlink_core::PC_WAKE.into()), "macOS needs an adapter for pc.wake");
+        let mut with_wake = caps.clone();
+        with_wake.retain(|c| c.as_str() != nectarlink_core::PC_WAKE);
+        let mut without_wake = with_wake.clone();
+        push_wake_cap(&mut with_wake, true);
+        push_wake_cap(&mut without_wake, false);
+        assert!(with_wake.contains(&nectarlink_core::PC_WAKE.into()));
+        assert!(!without_wake.contains(&nectarlink_core::PC_WAKE.into()));
+        assert_eq!(with_wake.len(), without_wake.len() + 1, "the switch adds only pc.wake");
 
         // Ensure supported features on macOS are advertised
         assert!(caps.contains(&"pc.power".into()));

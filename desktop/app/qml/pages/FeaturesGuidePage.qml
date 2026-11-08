@@ -453,7 +453,8 @@ Item {
             wolCheck: true,
             summary: qsTr("Let your paired phone wake this PC from sleep over your local network using Wake-on-LAN."),
             whereLabel: qsTr("Settings › Connection & About › Wake from your phone"),
-            needsLabel: qsTr("Network adapter with Wake-on-LAN enabled in Windows"),
+            needsLabel: Qt.platform.os === "osx" ? qsTr("Wake for network access turned on in System Settings")
+                : qsTr("Network adapter with Wake-on-LAN enabled in Windows"),
             targetId: "settings:connection:wol",
             docKey: "wol"
         },
@@ -515,6 +516,10 @@ Item {
             let st = AppController.wakeState
             if (st === "enabled")
                 return { label: qsTr("Ready on PC"), tone: "available", visible: true }
+            if (st === "unknown")
+                return { label: qsTr("Check settings"), tone: "off", visible: true }
+            if (st === "none")
+                return { label: qsTr("No adapter"), tone: "off", visible: true }
             return { label: qsTr("Off in Settings"), tone: "off", visible: true }
         }
         if (item.localsendCheck) {

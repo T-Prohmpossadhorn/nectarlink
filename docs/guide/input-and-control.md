@@ -14,7 +14,7 @@ NectarLink lets you control your PC from your phone and control your phone from 
 | **Type on phone from PC keyboard (without mirroring)** | `Assist` (Android Accessibility Service) or `Elevated` (Wireless Debugging) on the phone. |
 | **`Deck` macro pad** | Per-phone **Remote mouse, keyboard & Deck** (`remote_input`) toggle enabled on the PC. Tiles that run custom PC shell commands also require the separate per-phone **Run Deck shell commands** (`commands`) toggle in PC **Settings › Devices** (off by default). |
 | **Phone controls on PC Home** | `Standard` for Media volume, Ringer mode (Ring/Vibrate), and Flashlight. **Do Not Disturb and silent mode** requires Android Notification Policy Access (**Settings › Permissions › Control from your PC**). **Screen brightness** requires Android Modify system settings. **Wi-Fi** and **Bluetooth** toggles require `Elevated` (which also grants DND and brightness permissions automatically). |
-| **Lock, Sleep, and Wake-on-LAN** | **Lock, sleep & wake PC** (`pc_actions`) toggle enabled in PC **Settings › Devices** (on by default). Wake-on-LAN requires a PC network adapter with Wake on LAN enabled in Windows Device Manager and BIOS/UEFI (typically Ethernet). |
+| **Lock, Sleep, and Wake-on-LAN** | **Lock, sleep & wake PC** (`pc_actions`) toggle enabled in PC **Settings › Devices** (on by default). Wake-on-LAN requires a PC network adapter with Wake on LAN enabled in Windows Device Manager and BIOS/UEFI (typically Ethernet). On a Mac, turn on **Wake for network access** in System Settings. |
 
 ## Step-by-Step Use
 
@@ -100,7 +100,7 @@ When your phone is resting on a charger or desk stand, tap **Desk clock** on the
 - **Wake PC (Wake-on-LAN)**: When your PC is asleep or powered off, tap **Wake** on your phone (or on the Android home-screen widget).
   - On the local network, your phone sends Wake-on-LAN UDP packets to every MAC and broadcast address stored for your PC during prior connections.
   - If you have another NectarLink device online on your home LAN while you are on mobile data (**Connect over mobile data**), NectarLink can also relay the wake request through your online home device.
-  - Check **Settings › Connection & About › Wake from your phone** on your PC to verify whether your Windows network adapter has Wake on LAN enabled in Device Manager.
+  - Check **Settings › Connection & About › Wake from your phone** on your PC to verify whether your Windows network adapter has Wake on LAN enabled in Device Manager. On a Mac, the same place shows whether **Wake for network access** is on. A Mac with only Wi-Fi shows **Check settings**.
 
 ## What the Options Do
 
@@ -119,4 +119,5 @@ When your phone is resting on a charger or desk stand, tap **Desk clock** on the
 ## Limits
 
 - **Wake-on-LAN Hardware Requirements**: Waking a sleeping or powered-off PC over the network requires Wake-on-LAN to be enabled in your PC's BIOS/UEFI and in your network adapter's Windows Device Manager properties (**Power Management › Allow this device to wake the computer**). Most desktop Ethernet adapters support waking from both sleep (`S3`) and shutdown (`S5`), whereas many laptop Wi-Fi cards only support waking from low-power standby (`S0ix`) or sleep, not full shutdown.
+  - On a Mac, the setting is **Wake for network access** in System Settings. It is one setting for the whole Mac, not one per adapter. Waking a Mac over Wi-Fi may not work, and this is not yet confirmed on real hardware. Use a network cable for the most reliable wake.
 - **Wi-Fi and Bluetooth Toggles on Android 10+**: Starting in Android 10, regular apps cannot toggle Wi-Fi or Bluetooth directly. Those two toggles on PC Home require the `Elevated` power level on your phone.
