@@ -884,7 +884,7 @@ void qt_tray_setup(
         tray->setToolTip(tooltipStr);
         tray->setContextMenu(menu);
 #ifndef __APPLE__
-        // On macOS a click opens the menu (Qt emits no click while a menu is set).
+        // Not on macOS: there a click opens the menu, and Qt emits no click while a menu is set.
         QObject::connect(tray, &QSystemTrayIcon::activated, tray, [](QSystemTrayIcon::ActivationReason reason) {
             if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
                 pushTrayAction("OPEN");

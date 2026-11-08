@@ -41,9 +41,9 @@ Rejected: a second cxx-qt bridge, Qt Bluetooth or Qt Multimedia for macOS-only f
 
 ### Qt Widgets on macOS
 
-- The macOS app links the Qt Widgets module and creates a `QApplication`, as the Linux app already does. It needs this for menu-bar and menu code later. No widget is shown yet.
+- The macOS app links the Qt Widgets module and creates a `QApplication`, as the Linux app already does. It needs this for the menu-bar item, which is a Qt tray icon (`QSystemTrayIcon`) with a `QMenu`. No window is a widget.
 - Scope: Widgets is one more Qt module of the same LGPL Qt that the app already uses (ADR 0005). It adds one framework to the bundle (`QtWidgets.framework`, put there by `macdeployqt`). It adds no crate and no new licence.
-- Side effect to review: `QApplication` and `QGuiApplication` may differ in some defaults, for example the style and the quit rules. This is not tested yet and is a hardware check in the PR. The app still sets `quitOnLastWindowClosed` to false, as on every platform. Any later change to quit or menu behaviour must be reviewed in its own PR.
+- Side effect to review: `QApplication` and `QGuiApplication` may differ in some defaults, for example the style and the quit rules. This is not tested yet and is a hardware check in the PR. The app still sets `quitOnLastWindowClosed` to false, as on every platform. The menu-bar item keeps Quit in its menu. Any later change to quit behaviour must be reviewed in its own PR.
 
 ### Header and build checks
 

@@ -1029,9 +1029,10 @@ pub(crate) fn format_tray_device_summary(name: Option<&str>, b: &nectarlink_core
 }
 
 /// The phone's name goes into the tray text, except in the macOS menu bar,
-/// which anyone near the screen can read.
-pub(crate) fn tray_tooltip_phone_name(name: &str) -> Option<&str> {
-    if cfg!(target_os = "macos") { None } else { Some(name) }
+/// which anyone near the screen can read. `on_macos` is a flag so that a test
+/// can check the rule on every platform.
+pub(crate) fn tray_tooltip_phone_name(name: &str, on_macos: bool) -> Option<&str> {
+    if on_macos { None } else { Some(name) }
 }
 
 /// The text over the tray icon: how many devices are paired and connected, with
@@ -1248,10 +1249,12 @@ impl qobject::AppController {
                 .is_some_and(|d| matches!(d.link, LinkState::Online { .. }));
             // With one phone connected, the tray shows its battery and signal strength.
             let battery = match connected.as_slice() {
-                [one] => one
-                    .battery
-                    .as_ref()
-                    .map(|b| format_tray_device_summary(tray_tooltip_phone_name(&one.info.name), b)),
+                [one] => one.battery.as_ref().map(|b| {
+                    format_tray_device_summary(
+                        tray_tooltip_phone_name(&one.info.name, cfg!(target_os = "macos")),
+                        b,
+                    )
+                }),
                 _ => None,
             };
             let wake_adapter = s.wake.primary().map(|a| a.label.clone()).unwrap_or_default();
@@ -3539,20 +3542,17 @@ mod tests {
             wifi_bars: None,
         };
         let name = "Pixel 9";
-        let summary = format_tray_device_summary(tray_tooltip_phone_name(name), &b);
+        // On macOS the name is left out, on every platform's test run.
+        assert_eq!(tray_tooltip_phone_name(name, true), None);
+        let summary = format_tray_device_summary(tray_tooltip_phone_name(name, true), &b);
         let tooltip = tray_tooltip(1, 1, Some(&summary), 0);
-        if cfg!(target_os = "macos") {
-            assert_eq!(tray_tooltip_phone_name(name), None);
-            assert_eq!(tooltip, "NectarLink · 85%");
-        } else {
-            assert_eq!(tray_tooltip_phone_name(name), Some(name));
-        }
+        assert_eq!(tooltip, "NectarLink · 85%");
+        assert!(!tooltip.contains(name));
+        // Elsewhere the name is kept.
+        assert_eq!(tray_tooltip_phone_name(name, false), Some(name));
         // Counts alone never name anything.
         for (devices, online) in [(0, 0), (1, 0), (1, 1), (4, 3)] {
             assert!(!tray_tooltip(devices, online, None, 2).contains(name));
-        }
-        if cfg!(target_os = "macos") {
-            assert!(!tooltip.contains(name));
         }
     }
 }
