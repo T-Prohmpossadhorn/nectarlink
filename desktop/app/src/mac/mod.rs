@@ -19,6 +19,7 @@ pub mod jumplist;
 pub mod media_sessions;
 pub mod mp4;
 pub mod net;
+pub mod open_events;
 pub mod power;
 pub mod sc;
 pub mod share;

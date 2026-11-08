@@ -79,6 +79,12 @@ pub mod ffi {
         #[allow(dead_code)]
         fn mac_local_offset_ms(at_ms: i64) -> i64;
 
+        /// The fully encoded URLs of what Finder or the system asked the app to
+        /// open (files, `nectarlink://` links), waiting up to `timeout_ms` for
+        /// the first. Always empty off macOS.
+        #[allow(dead_code)]
+        fn mac_open_urls_wait(timeout_ms: u32) -> Vec<String>;
+
         #[allow(dead_code)]
         fn mac_free_space(path: &str, ok: &mut bool) -> u64;
 

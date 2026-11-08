@@ -93,6 +93,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>NectarLink uses the camera only when you start a feature that needs it.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>NectarLink controls media players on this Mac when you ask it to from your phone.</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>File</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>LSItemContentTypes</key><array><string>public.data</string></array>
+        </dict>
+    </array>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

@@ -377,7 +377,9 @@ fn parse_options_from<I: IntoIterator<Item = std::ffi::OsString>>(iter: I) -> Op
         options.minimized = true;
     } else if share_targets.is_empty() && !paths.is_empty() {
         // Desktop entry `Exec=nectarlink-desktop %U` passes URLs or dropped files
-        // as positional arguments without `--share`.
+        // as positional arguments without `--share`. On a Mac this only
+        // serves a launch from a command line: Finder opens and `nectarlink://`
+        // links arrive as Apple Events (`win::open_events`), never here.
         share_targets = paths.into_iter().map(|p| p.to_string_lossy().into_owned()).collect();
     }
     if matches!(options.task.as_deref(), Some("send-clipboard" | "find-phone" | "take-photo")) {
@@ -735,6 +737,12 @@ fn main() -> ExitCode {
         });
     }
 
+    // Files opened with the app in Finder or dropped on its Dock icon, and
+    // `nectarlink://` links. They arrive as Apple Events, never in the
+    // command line. The Qt filter is already installed (`create_qt_app`).
+    #[cfg(target_os = "macos")]
+    win::open_events::start();
+
     let mut engine = QQmlApplicationEngine::new();
     if let Some(mut engine) = engine.as_mut() {
         bridge::native::ffi::register_qml_app_engine(engine.as_mut());
@@ -760,6 +768,8 @@ fn main() -> ExitCode {
     webcam::shutdown();
     storage::shutdown();
     win::net::stop();
+    #[cfg(target_os = "macos")]
+    win::open_events::stop();
     core_host::shutdown();
     drop(app);
     if options.ui_check {

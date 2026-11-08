@@ -3,10 +3,9 @@
 //! links, web links, `nectarlink://` links, or text) and the share that another
 //! launch left in `activated-share.json`.
 //!
-//! Nothing registers this as a system share target yet. The app bundle
-//! declares the `nectarlink://` scheme in its Info.plist, but nothing handles
-//! the link yet. Finder open events and the share picker arrive later. All of
-//! them use the same payload.
+//! Finder open events (`open_events`) use the same payload, through
+//! [`payload_from_open_event`]. Nothing registers this as a system share
+//! target, and the share picker arrives later.
 
 use std::{
     ffi::OsString,
@@ -142,6 +141,18 @@ pub fn parse_targets(targets: &[String]) -> SharedPayload {
     payload
 }
 
+/// The payload for the URLs of one Finder open event (files opened with the
+/// app or dropped on its Dock icon), or `None` when nothing in them is a
+/// share. Only a `file://` link to this Mac counts. Any other link, a
+/// `nectarlink://` link included, is not a share: the phone cannot take a
+/// `nectarlink:` link, and no other link is something the system meant to
+/// open here, so none of them becomes a link or text sent to a phone.
+pub fn payload_from_open_event(urls: &[String]) -> Option<SharedPayload> {
+    let kept: Vec<String> = urls.iter().filter(|url| parse_file_uri(url.trim()).is_some()).cloned().collect();
+    let payload = parse_targets(&kept);
+    (!payload.is_empty()).then_some(payload)
+}
+
 /// Takes the share that another launch left in `data_dir`, if there is one.
 /// The file is removed whether or not it can be read, so a bad one is not
 /// tried again. A link or an oversized file is removed and ignored.
@@ -253,6 +264,60 @@ mod tests {
             parse_targets(&targets(&[r"C:\Users\Alice\photo.jpg", r"D:\notes.txt", "and/or", "x\\y"]));
         assert!(payload.files.is_empty());
         assert_eq!(payload.text.as_deref(), Some(r"C:\Users\Alice\photo.jpg D:\notes.txt and/or x\y"));
+    }
+
+    #[test]
+    fn open_event_files_become_one_payload() {
+        let payload = payload_from_open_event(&targets(&[
+            "file:///Users/alice/My%20Documents/a.pdf",
+            "file:///tmp/b.png",
+        ]))
+        .unwrap();
+        assert_eq!(
+            payload.files,
+            vec![PathBuf::from("/Users/alice/My Documents/a.pdf"), PathBuf::from("/tmp/b.png")]
+        );
+        assert!(payload.url.is_none());
+        assert!(payload.text.is_none());
+    }
+
+    #[test]
+    fn open_event_nectarlink_link_is_not_a_share_and_empty_input_is_nothing() {
+        // The phone cannot take a nectarlink: link, so it is never sent.
+        assert!(payload_from_open_event(&targets(&["nectarlink://share?text=hello"])).is_none());
+        let payload = payload_from_open_event(&targets(&[
+            "nectarlink://pair?code=1",
+            "nectarlink://share?text=hello",
+            "file:///tmp/d.txt",
+        ]))
+        .unwrap();
+        assert_eq!(payload.files, vec![PathBuf::from("/tmp/d.txt")]);
+        assert!(payload.url.is_none());
+        assert!(payload.text.is_none());
+        assert!(payload_from_open_event(&[]).is_none());
+        assert!(payload_from_open_event(&targets(&["", "  "])).is_none());
+    }
+
+    #[test]
+    fn open_event_ignores_what_is_not_a_file() {
+        // Other schemes, plain text, paths without a scheme and other computers
+        // are never shared.
+        let none = payload_from_open_event(&targets(&[
+            "https://example.com",
+            "geo:48.85,2.35",
+            "hello world",
+            "/tmp/plain-path",
+            "file://server/share/a.txt",
+            "nectarlink://share?text=hello",
+            "nectarlink:",
+        ]));
+        assert!(none.is_none());
+        // The good ones in the same event still go through.
+        let payload =
+            payload_from_open_event(&targets(&["https://example.com", "file:///tmp/c.txt"])).unwrap();
+        assert_eq!(payload.files, vec![PathBuf::from("/tmp/c.txt")]);
+        assert!(payload.url.is_none());
+        assert!(payload.text.is_none());
     }
 
     #[test]

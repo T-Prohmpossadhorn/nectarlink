@@ -134,6 +134,10 @@ change things that need a step from you, and its notes say so.
   Privacy & Security › Accessibility, and the phone offers input once you do. Volume and
   media keys are not there yet. The Mac's own mouse does not freeze while the phone sends
   input.
+- **Open files with NectarLink on a Mac.** In Finder, choose Open With and then NectarLink
+  for a file. You can also drop files on the NectarLink icon in the Dock. The app then sends
+  them to your phone. The app is set up so that it should not become the default app for
+  any file type. This is not tested on a Mac yet.
 
 ### Fixed
 
