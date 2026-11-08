@@ -374,7 +374,10 @@ fn main() {
         .qml_files(QML.iter().map(|f| QmlFile::from(*f)))
         .qml_files(QML_SINGLETONS.iter().map(|f| QmlFile::from(*f).singleton(true)));
     let mut builder = CxxQtBuilder::new_qml_module(module).qt_module("Quick");
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+    // Widgets gives `QApplication`, which Linux and macOS create instead of
+    // `QGuiApplication`. cxx-qt-build puts the module on the link line itself on
+    // macOS (as the QtWidgets framework), so no `rustc-link-lib` line is needed here.
+    if matches!(std::env::var("CARGO_CFG_TARGET_OS").as_deref(), Ok("linux" | "macos")) {
         builder = builder.qt_module("Widgets");
     }
     builder
