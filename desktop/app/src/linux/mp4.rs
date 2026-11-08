@@ -16,6 +16,12 @@ use std::{
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
+/// Whether this build can record the mirror to an MP4 file. The window hides its
+/// record button and Ctrl+R when it cannot.
+pub fn supported() -> bool {
+    true
+}
+
 /// Formats `<prefix> YYYY-MM-DD HH.MM.SS.<ext>` using the PC's local clock.
 pub fn local_timestamp_filename(prefix: &str, ext: &str) -> String {
     let clean_ext = ext.trim_start_matches('.');
@@ -1170,6 +1176,11 @@ fn build_stco(chunk_offset: u32) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn linux_can_record() {
+        assert!(supported());
+    }
 
     fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
         haystack.windows(needle.len()).any(|w| w == needle)

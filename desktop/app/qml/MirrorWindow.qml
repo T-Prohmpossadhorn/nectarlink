@@ -19,6 +19,8 @@ Window {
     readonly property string deviceName: info.name || ""
     readonly property string phase: info.phase || ""
     readonly property bool canControl: info.canControl === true
+    // False on a Mac, which has no MP4 recorder. A missing key counts as false.
+    readonly property bool canRecord: info.canRecord === true
 
     visible: true
     title: info.app ? qsTr("%1 · %2").arg(info.title).arg(deviceName)
@@ -250,7 +252,7 @@ Window {
                 event.accepted = true
                 return
             }
-            if ((event.modifiers & Qt.ControlModifier) && !(event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_R) {
+            if (win.canRecord && (event.modifiers & Qt.ControlModifier) && !(event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_R) {
                 Mirror.toggleRecording(win.mirrorKey)
                 event.accepted = true
                 return
@@ -373,25 +375,30 @@ Window {
                 id: copyShotBtn
                 iconPath: Icons.copy
                 iconColor: "white"
-                label: qsTr("Copy screenshot (Ctrl+Shift+C)")
+                label: Qt.platform.os === "osx"
+                    ? qsTr("Copy screenshot (%1)").arg(AppController.shortcutLabel("Ctrl+Shift+C", false))
+                    : qsTr("Copy screenshot (Ctrl+Shift+C)")
                 onClicked: Mirror.screenshotClipboard(win.mirrorKey)
             }
             IconButton {
                 id: saveShotBtn
                 iconPath: Icons.camera
                 iconColor: "white"
-                label: qsTr("Save screenshot (Ctrl+S)")
+                label: Qt.platform.os === "osx"
+                    ? qsTr("Save screenshot (%1)").arg(AppController.shortcutLabel("Ctrl+S", false))
+                    : qsTr("Save screenshot (Ctrl+S)")
                 onClicked: Mirror.screenshotFile(win.mirrorKey)
             }
             IconButton {
                 id: recordBtn
+                visible: win.canRecord
                 iconPath: win.info.recording === true ? Icons.stopSquare : Icons.record
                 iconColor: win.info.recording === true ? Theme.error : "white"
                 label: win.info.recording === true ? qsTr("Stop recording (Ctrl+R)") : qsTr("Record video (Ctrl+R)")
                 onClicked: Mirror.toggleRecording(win.mirrorKey)
             }
             Txt {
-                visible: win.info.recording === true
+                visible: win.canRecord && win.info.recording === true
                 anchors.verticalCenter: parent.verticalCenter
                 leftPadding: 2
                 rightPadding: 6

@@ -32,6 +32,12 @@ use windows::{
 
 use super::h264::ensure_mf_started;
 
+/// Whether this build can record the mirror to an MP4 file. The window hides its
+/// record button and Ctrl+R when it cannot.
+pub fn supported() -> bool {
+    true
+}
+
 /// Formats `<prefix> YYYY-MM-DD HH.MM.SS.<ext>` using the PC's local clock.
 pub fn local_timestamp_filename(prefix: &str, ext: &str) -> String {
     // SAFETY: GetLocalTime always succeeds and writes a SYSTEMTIME struct.
@@ -446,6 +452,11 @@ fn is_parameter_only(data: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windows_can_record() {
+        assert!(supported());
+    }
 
     /// Splits an Annex-B stream into access units at its access unit delimiters (NAL type 9).
     fn access_units(stream: &[u8]) -> Vec<&[u8]> {

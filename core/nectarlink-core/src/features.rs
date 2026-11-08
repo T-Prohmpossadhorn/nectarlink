@@ -1491,10 +1491,20 @@ mod tests {
             "contacts.show",
             "sms.show",
             "toggles.show",
+            "mirror.view",
+            "mirror.listen",
         ];
         let mac = facts(DeviceKind::Desktop, "macos", "15.0", PowerLevel::NotApplicable, MAC_DESKTOP);
         let mut phone_caps = BASIC_PHONE.to_vec();
-        phone_caps.extend(["link.open", "storage.read", "storage.write"]);
+        phone_caps.extend([
+            "link.open",
+            "storage.read",
+            "storage.write",
+            "mirror.input",
+            "mirror.virtual_display",
+            "mirror.audio",
+            "mirror.sound",
+        ]);
         let phone = facts(DeviceKind::Phone, "android", "16", PowerLevel::Elevated, &phone_caps);
         let m = matrix_with(&phone, &mac, &HashMap::new());
 
@@ -1512,14 +1522,35 @@ mod tests {
         assert_eq!(m.state("toggles.volume"), Some(FeatureState::Available));
         assert_eq!(m.state("clipboard.pc_to_phone"), Some(FeatureState::Available));
 
-        // Unsupported macOS features are NOT Available:
-        assert_eq!(
-            m.state("mirroring.view"),
-            Some(locked(UpgradeAction::UpdateApp(Role::Desktop), Effort::Minutes(2)))
+        // The Mac offers mirror.view, which also unlocks control and app windows
+        // (they need only the phone's own caps), and mirror.listen for sound:
+        assert_eq!(m.state("mirroring.view"), Some(FeatureState::Available));
+        assert_eq!(m.state("mirroring.control"), Some(FeatureState::Available));
+        assert_eq!(m.state("mirroring.app_windows"), Some(FeatureState::Available));
+        assert_eq!(m.state("mirroring.audio"), Some(FeatureState::Available));
+        assert_eq!(m.state("mirroring.sound"), Some(FeatureState::Available));
+        // Without those two, the same phone leaves all of them locked behind a Mac update:
+        let old_mac = facts(
+            DeviceKind::Desktop,
+            "macos",
+            "15.0",
+            PowerLevel::NotApplicable,
+            &MAC_DESKTOP[..MAC_DESKTOP.len() - 2],
         );
-        assert_ne!(m.state("mirroring.control"), Some(FeatureState::Available));
-        assert_ne!(m.state("mirroring.app_windows"), Some(FeatureState::Available));
-        assert_ne!(m.state("mirroring.audio"), Some(FeatureState::Available));
+        let old = matrix_with(&phone, &old_mac, &HashMap::new());
+        for feature in [
+            "mirroring.view",
+            "mirroring.control",
+            "mirroring.app_windows",
+            "mirroring.audio",
+            "mirroring.sound",
+        ] {
+            assert_eq!(
+                old.state(feature),
+                Some(locked(UpgradeAction::UpdateApp(Role::Desktop), Effort::Minutes(2))),
+                "{feature}"
+            );
+        }
         assert_eq!(
             m.state("media.pc_control"),
             Some(locked(UpgradeAction::UpdateApp(Role::Desktop), Effort::Minutes(2)))

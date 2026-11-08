@@ -5808,163 +5808,173 @@ What it needs
 <context>
     <name>MirrorWindow</name>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="24"/>
+        <location filename="../../qml/MirrorWindow.qml" line="26"/>
         <source>%1 · %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="25"/>
+        <location filename="../../qml/MirrorWindow.qml" line="27"/>
         <source>%1 · NectarLink</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="25"/>
+        <location filename="../../qml/MirrorWindow.qml" line="27"/>
         <source>Phone screen · NectarLink</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="376"/>
+        <location filename="../../qml/MirrorWindow.qml" line="380"/>
         <source>Copy screenshot (Ctrl+Shift+C)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="383"/>
+        <location filename="../../qml/MirrorWindow.qml" line="389"/>
         <source>Save screenshot (Ctrl+S)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="390"/>
+        <location filename="../../qml/MirrorWindow.qml" line="397"/>
         <source>Stop recording (Ctrl+R)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="390"/>
+        <location filename="../../qml/MirrorWindow.qml" line="397"/>
         <source>Record video (Ctrl+R)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="408"/>
+        <location filename="../../qml/MirrorWindow.qml" line="415"/>
         <source>Phone stays awake while mirroring (turn off)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="409"/>
+        <location filename="../../qml/MirrorWindow.qml" line="416"/>
         <source>Keep phone awake while mirroring</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="418"/>
+        <location filename="../../qml/MirrorWindow.qml" line="425"/>
         <source>Turn phone screen back on</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="419"/>
+        <location filename="../../qml/MirrorWindow.qml" line="426"/>
         <source>Turn phone screen off while mirroring</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="436"/>
-        <location filename="../../qml/MirrorWindow.qml" line="512"/>
+        <location filename="../../qml/MirrorWindow.qml" line="443"/>
+        <location filename="../../qml/MirrorWindow.qml" line="519"/>
         <source>Play the phone&apos;s sound here</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="427"/>
+        <location filename="../../qml/MirrorWindow.qml" line="434"/>
         <source>Lock phone</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="471"/>
+        <location filename="../../qml/MirrorWindow.qml" line="478"/>
         <source>Back (right-click)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="478"/>
+        <location filename="../../qml/MirrorWindow.qml" line="485"/>
         <source>Home (middle-click)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="485"/>
+        <location filename="../../qml/MirrorWindow.qml" line="492"/>
         <source>Recent apps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="436"/>
+        <location filename="../../qml/MirrorWindow.qml" line="443"/>
         <source>Play the sound on the phone</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="521"/>
+        <location filename="../../qml/MirrorWindow.qml" line="379"/>
+        <source>Copy screenshot (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../qml/MirrorWindow.qml" line="388"/>
+        <source>Save screenshot (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../qml/MirrorWindow.qml" line="528"/>
         <source>Release to send files to %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="521"/>
+        <location filename="../../qml/MirrorWindow.qml" line="528"/>
         <source>phone</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="589"/>
+        <location filename="../../qml/MirrorWindow.qml" line="596"/>
         <source>To control the phone, turn on Control from your PC in NectarLink&apos;s settings on the phone.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="598"/>
+        <location filename="../../qml/MirrorWindow.qml" line="605"/>
         <source>Notify phone</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="609"/>
+        <location filename="../../qml/MirrorWindow.qml" line="616"/>
         <source>Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="647"/>
+        <location filename="../../qml/MirrorWindow.qml" line="654"/>
         <source>Opening %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="647"/>
+        <location filename="../../qml/MirrorWindow.qml" line="654"/>
         <source>Allow it on your phone</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="648"/>
+        <location filename="../../qml/MirrorWindow.qml" line="655"/>
         <source>%1 closed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="648"/>
+        <location filename="../../qml/MirrorWindow.qml" line="655"/>
         <source>Mirroring stopped</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="649"/>
+        <location filename="../../qml/MirrorWindow.qml" line="656"/>
         <source>Starting…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="658"/>
+        <location filename="../../qml/MirrorWindow.qml" line="665"/>
         <source>Tap the notification on %1, then choose to share the entire screen.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="660"/>
+        <location filename="../../qml/MirrorWindow.qml" line="667"/>
         <source>The app closed on %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="661"/>
+        <location filename="../../qml/MirrorWindow.qml" line="668"/>
         <source>The phone stopped sharing its screen.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="668"/>
+        <location filename="../../qml/MirrorWindow.qml" line="675"/>
         <source>Open again</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/MirrorWindow.qml" line="668"/>
+        <location filename="../../qml/MirrorWindow.qml" line="675"/>
         <source>Try again</source>
         <translation type="unfinished"></translation>
     </message>

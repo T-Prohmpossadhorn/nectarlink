@@ -28,8 +28,8 @@ pub mod qobject {
         #[qml_element]
         #[qml_singleton]
         /// The windows, as JSON: `[{ key, device, session, name, title,
-        /// phase ("asking", "showing", "ended"), reason, canControl, sound,
-        /// app }]`.
+        /// phase ("asking", "showing", "ended"), reason, canControl, canRecord,
+        /// sound, app }]`.
         #[qproperty(QString, windows)]
         /// The user turned the phones' sound off on this PC.
         #[qproperty(bool, muted)]
@@ -245,6 +245,8 @@ impl qobject::Mirror {
                     } else {
                         crate::phone_sound::playing(&window.device)
                     },
+                    // False on a Mac, which has no MP4 recorder: the window hides the record button.
+                    "canRecord": crate::win::mp4::supported(),
                     "recording": mirror::is_recording(&window),
                     "recordingStartedMs": mirror::recording_started_ms(&window),
                     "stayAwake": mirror::stay_awake(&window.device),
@@ -521,4 +523,39 @@ impl qobject::Mirror {
 /// A position on the screen, kept on it.
 fn fraction(v: f64) -> f32 {
     if v.is_finite() { v.clamp(0.0, 1.0) as f32 } else { 0.0 }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The window list says whether this build can record, from the platform's own answer.
+    #[test]
+    fn the_window_list_carries_can_record_from_the_platform() {
+        // Built from parts so this test's own text is not what it finds.
+        let line = format!("\"{}\": crate::win::mp4::supported()", "canRecord");
+        assert!(include_str!("mirror.rs").contains(&line));
+        assert_eq!(crate::win::mp4::supported(), !cfg!(target_os = "macos"));
+    }
+
+    /// MirrorWindow.qml hides every recording control unless the key is exactly true,
+    /// so a window list without the key never shows a recording that cannot save.
+    #[test]
+    fn the_mirror_window_hides_recording_unless_can_record_is_true() {
+        let qml = include_str!("../../qml/MirrorWindow.qml");
+        assert!(qml.contains("readonly property bool canRecord: info.canRecord === true"));
+        // The button, the elapsed time and the Ctrl+R key.
+        assert!(qml.contains("id: recordBtn\n                visible: win.canRecord\n"));
+        assert!(qml.contains("visible: win.canRecord && win.info.recording === true"));
+        assert!(qml.contains("if (win.canRecord && (event.modifiers & Qt.ControlModifier)"));
+        assert!(qml.contains("event.key === Qt.Key_R"));
+        // Nothing else reaches the recorder from QML.
+        assert_eq!(qml.matches("Mirror.toggleRecording").count(), 2);
+    }
+
+    /// A Mac names its keys in the screenshot labels through the shortcut helper.
+    #[test]
+    fn the_mirror_window_names_mac_keys_with_the_shortcut_helper() {
+        let qml = include_str!("../../qml/MirrorWindow.qml");
+        assert!(qml.contains("shortcutLabel(\"Ctrl+Shift+C\", false)"));
+        assert!(qml.contains("shortcutLabel(\"Ctrl+S\", false)"));
+    }
 }
