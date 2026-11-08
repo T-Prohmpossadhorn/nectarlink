@@ -4,24 +4,27 @@
 //! `AudioToolbox/AudioQueue.h`, `CoreAudioTypes/CoreAudioBaseTypes.h` and
 //! `CoreFoundation/CFString.h`. Playing sound needs no permission.
 //!
-//! Packets go through a small bounded channel to the queue's callback. The
-//! callback runs on a thread of the audio queue (the run loop is NULL), so it
-//! only moves bytes: it favors low delay like the Windows player. Playback
-//! starts once a few packets are in, falls back to silence (and waits again)
-//! when the network stalls, and drops the oldest sound when it piles up.
+//! The sound goes into one ring buffer that is made once, before the queue
+//! starts. The producer copies each packet in under a short lock. The queue's
+//! callback runs on a thread of the audio queue (the run loop is NULL). It takes
+//! the same lock only with `try_lock`, copies bytes out and fills the rest with
+//! silence. It never allocates or frees memory, and it never logs. Playback
+//! starts once a few frames are in, falls back to silence (and waits again) when
+//! the network stalls, and drops the oldest sound when it piles up. The ring
+//! holds at most [`MOST_MS`] of sound, so that is the most that waits before
+//! the queue's own buffers and the device.
 
 #![allow(unsafe_code)]
 
 use std::{
-    collections::VecDeque,
     ffi::{CString, c_char, c_void},
     io::{Error, ErrorKind, Result},
-    mem::size_of,
+    mem::{align_of, offset_of, size_of},
     panic::{AssertUnwindSafe, catch_unwind},
     ptr, slice,
     sync::{
-        Mutex, TryLockError,
-        mpsc::{Receiver, SyncSender, TrySendError, sync_channel},
+        Arc, Mutex, PoisonError, TryLockError,
+        atomic::{AtomicBool, Ordering},
     },
 };
 
@@ -46,14 +49,17 @@ const PROPERTY_CURRENT_DEVICE: u32 = fourcc(b"aqcd");
 const RATES: std::ops::RangeInclusive<u32> = 8_000..=192_000;
 const CHANNELS: std::ops::RangeInclusive<u16> = 1..=8;
 
+/// The longest device UID this player accepts, in bytes. Real UIDs are much
+/// shorter. A longer one is treated as a missing device.
+const MAX_UID_BYTES: usize = 512;
+
 /// Buffers the queue holds, and how much sound each one has.
 const BUFFERS: usize = 3;
 const BUFFER_MS: u32 = 20;
-/// Sound packets waiting for the callback, at most.
-const QUEUE: usize = 64;
 /// How much sound is gathered before playing (and again after a stall).
 const START_MS: usize = 40;
-/// More than this waiting, and the oldest is dropped down to [`TRIM_TO_MS`].
+/// The most sound that waits, in all. A packet that would push the total past
+/// this makes the oldest sound go, down to [`TRIM_TO_MS`].
 const MOST_MS: usize = 200;
 const TRIM_TO_MS: usize = 60;
 
@@ -84,6 +90,32 @@ struct QueueBuffer {
     packet_descriptions: *mut c_void,
     packet_description_count: u32,
 }
+
+// The layouts must match the C headers, or the system reads wrong bytes. These
+// fail the build, not a test run, if a field is changed by mistake. The sizes
+// are those of the LP64 targets (arm64 and x86_64): `UInt32` fields that follow
+// a pointer are padded to 8 bytes.
+const _: () = {
+    assert!(size_of::<StreamDescription>() == 40);
+    assert!(align_of::<StreamDescription>() == 8);
+    assert!(offset_of!(StreamDescription, format_id) == 8);
+    assert!(offset_of!(StreamDescription, format_flags) == 12);
+    assert!(offset_of!(StreamDescription, bytes_per_packet) == 16);
+    assert!(offset_of!(StreamDescription, frames_per_packet) == 20);
+    assert!(offset_of!(StreamDescription, bytes_per_frame) == 24);
+    assert!(offset_of!(StreamDescription, channels_per_frame) == 28);
+    assert!(offset_of!(StreamDescription, bits_per_channel) == 32);
+    assert!(offset_of!(StreamDescription, reserved) == 36);
+    assert!(size_of::<QueueBuffer>() == 56);
+    assert!(align_of::<QueueBuffer>() == 8);
+    assert!(offset_of!(QueueBuffer, data) == 8);
+    assert!(offset_of!(QueueBuffer, byte_size) == 16);
+    assert!(offset_of!(QueueBuffer, user_data) == 24);
+    assert!(offset_of!(QueueBuffer, packet_description_capacity) == 32);
+    assert!(offset_of!(QueueBuffer, packet_descriptions) == 40);
+    assert!(offset_of!(QueueBuffer, packet_description_count) == 48);
+    assert!(size_of::<CFTypeRef>() == 8);
+};
 
 type OutputCallback = unsafe extern "C" fn(user: *mut c_void, queue: AudioQueueRef, buffer: *mut QueueBuffer);
 
@@ -144,84 +176,175 @@ fn buffer_bytes(rate: u32, channels: u16) -> u32 {
     rate * BUFFER_MS / 1000 * 2 * u32::from(channels)
 }
 
-/// The jitter buffer, in bytes of interleaved 16-bit samples.
-#[derive(Debug)]
-struct Jitter {
-    bytes: VecDeque<u8>,
-    /// Bytes in one sample frame.
-    frame: usize,
-    /// Bytes in one millisecond.
-    per_ms: usize,
-    /// Gathering sound before playing.
-    waiting: bool,
+/// Bytes of `ms` milliseconds of sound, in whole frames (rounded down).
+fn ms_bytes(rate: u32, channels: u16, ms: usize) -> usize {
+    rate as usize * ms / 1000 * 2 * usize::from(channels)
 }
 
-impl Jitter {
-    fn new(rate: u32, channels: u16) -> Jitter {
+/// How many bytes to drop from the front of `ring ++ incoming` so that the
+/// sound that waits stays within `cap` bytes. Returns `(from_ring, from_incoming)`.
+///
+/// Nothing is dropped while the total fits in `cap`. Above it, the oldest
+/// sound goes until at most `keep` bytes are left (`keep` is at most `cap`).
+/// Only whole frames of `frame` bytes are dropped, so the ring (which always
+/// starts on a frame) keeps the channels in order. A packet bigger than the
+/// ring loses its own first bytes after the whole ring is dropped.
+fn trim_plan(ring: usize, incoming: usize, frame: usize, cap: usize, keep: usize) -> (usize, usize) {
+    let total = ring + incoming;
+    if total <= cap {
+        return (0, 0);
+    }
+    let excess = total - keep.min(cap);
+    let drop = (excess.div_ceil(frame) * frame).min(total / frame * frame);
+    let from_ring = drop.min(ring);
+    (from_ring, drop - from_ring)
+}
+
+/// The sound waiting to be played: a ring of bytes of interleaved 16-bit
+/// samples, with a fixed size that is the whole budget of [`MOST_MS`].
+#[derive(Debug)]
+struct Ring {
+    buf: Box<[u8]>,
+    /// Where the oldest byte is.
+    head: usize,
+    /// Bytes waiting.
+    len: usize,
+    /// Bytes in one sample frame.
+    frame: usize,
+    /// Bytes to gather before playing.
+    start: usize,
+    /// Bytes to keep after a trim.
+    keep: usize,
+    /// Gathering sound before playing.
+    waiting: bool,
+    /// Times the sound ran out while playing. A count, nothing else.
+    stalls: u64,
+    /// Times sound was dropped because too much waited. A count, nothing else.
+    trims: u64,
+}
+
+impl Ring {
+    /// Makes the ring (the only allocation of the player's sound path).
+    fn new(rate: u32, channels: u16) -> Ring {
         let frame = 2 * usize::from(channels);
-        Jitter { bytes: VecDeque::new(), frame, per_ms: frame * rate as usize / 1000, waiting: true }
+        // The budget is whole frames, so it holds no more than MOST_MS.
+        let cap = ms_bytes(rate, channels, MOST_MS).max(frame);
+        Ring {
+            buf: vec![0; cap].into_boxed_slice(),
+            head: 0,
+            len: 0,
+            frame,
+            start: ms_bytes(rate, channels, START_MS),
+            keep: ms_bytes(rate, channels, TRIM_TO_MS).clamp(frame, cap),
+            waiting: true,
+            stalls: 0,
+            trims: 0,
+        }
     }
 
     /// Adds sound. A packet may end inside a frame: the next one finishes it,
-    /// so every byte is kept. Only whole frames leave ([`Jitter::fill`]) or are
-    /// dropped from the front, so the channels never swap.
+    /// so every byte is kept. Only whole frames leave ([`Ring::fill`]) or are
+    /// dropped from the front, so the channels never swap. The total never
+    /// goes past the size of the ring.
     fn push(&mut self, data: &[u8]) {
-        self.bytes.extend(data);
-        if self.bytes.len() > self.per_ms * MOST_MS {
-            let keep = self.per_ms * TRIM_TO_MS;
-            let drop = (self.bytes.len() - keep) / self.frame * self.frame;
-            self.bytes.drain(..drop);
+        let cap = self.buf.len();
+        let (from_ring, from_data) = trim_plan(self.len, data.len(), self.frame, cap, self.keep);
+        if from_ring + from_data > 0 {
+            self.trims += 1;
         }
+        self.head = (self.head + from_ring) % cap;
+        self.len -= from_ring;
+        let data = &data[from_data..];
+        // `trim_plan` leaves room for all of `data`.
+        let tail = (self.head + self.len) % cap;
+        let first = data.len().min(cap - tail);
+        self.buf[tail..tail + first].copy_from_slice(&data[..first]);
+        self.buf[..data.len() - first].copy_from_slice(&data[first..]);
+        self.len += data.len();
     }
 
     /// Fills `out` (whole frames) with the oldest sound, and silence for what
     /// is missing. When the sound runs out it waits to gather some again.
+    /// This does not allocate.
     fn fill(&mut self, out: &mut [u8]) {
         if self.waiting {
-            if self.bytes.len() < self.per_ms * START_MS {
+            if self.len < self.start {
                 out.fill(0);
                 return;
             }
             self.waiting = false;
         }
-        let take = self.bytes.len().min(out.len()) / self.frame * self.frame;
-        for (slot, byte) in out.iter_mut().zip(self.bytes.drain(..take)) {
-            *slot = byte;
-        }
+        let take = self.len.min(out.len()) / self.frame * self.frame;
+        let cap = self.buf.len();
+        let first = take.min(cap - self.head);
+        out[..first].copy_from_slice(&self.buf[self.head..self.head + first]);
+        out[first..take].copy_from_slice(&self.buf[..take - first]);
+        self.head = (self.head + take) % cap;
+        self.len -= take;
         out[take..].fill(0);
         if take < out.len() {
+            if !self.waiting {
+                self.stalls += 1;
+            }
             self.waiting = true;
         }
     }
 }
 
-/// What the queue's callback works on.
-struct State {
-    packets: Receiver<Vec<u8>>,
-    jitter: Jitter,
+/// Takes the lock for the callback: never waits. If the producer holds the
+/// lock, `out` is silence for this buffer. A panic must not cross the C frame.
+fn render(ring: &Mutex<Ring>, out: &mut [u8]) {
+    out.fill(0);
+    let _ = catch_unwind(AssertUnwindSafe(|| match ring.try_lock() {
+        Ok(mut ring) => ring.fill(out),
+        Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner().fill(out),
+        Err(TryLockError::WouldBlock) => {}
+    }));
 }
 
-impl State {
-    /// Takes in what has arrived, then fills `out` for the speakers.
-    fn render(&mut self, out: &mut [u8]) {
-        while let Ok(packet) = self.packets.try_recv() {
-            self.jitter.push(&packet);
-        }
-        self.jitter.fill(out);
+/// The producer's side: a short lock, one copy.
+fn deliver(ring: &Mutex<Ring>, data: &[u8]) {
+    ring.lock().unwrap_or_else(PoisonError::into_inner).push(data);
+}
+
+/// True the first time it is called for `flag`, false after that.
+fn first_time(flag: &AtomicBool) -> bool {
+    !flag.swap(true, Ordering::Relaxed)
+}
+
+/// Says once, at debug level, that the default output is used. Never the UID.
+fn note_fallback(reason: &str, status: OSStatus) {
+    static LOGGED: AtomicBool = AtomicBool::new(false);
+    if first_time(&LOGGED) {
+        tracing::debug!(reason, status, "the chosen output was not used; playing on the default output");
     }
+}
+
+/// A UID this player will pass to the system: not empty, not longer than
+/// [`MAX_UID_BYTES`] and without a NUL byte.
+fn uid_is_usable(uid: &str) -> bool {
+    !uid.is_empty() && uid.len() <= MAX_UID_BYTES && !uid.contains('\0')
 }
 
 /// Plays sound until dropped.
 pub struct Player {
     queue: AudioQueueRef,
-    /// Owned by the player; freed after the queue is disposed.
-    state: *mut Mutex<State>,
-    packets: SyncSender<Vec<u8>>,
+    /// The sound. The queue's callback reads it through a raw pointer to this
+    /// allocation, so it must outlive the queue: fields drop after
+    /// [`Player::drop`] has disposed the queue.
+    ring: Arc<Mutex<Ring>>,
+    /// The UID string of the chosen output, kept until the queue is disposed.
+    /// `AudioQueue.h` only says that `kAudioQueueProperty_CurrentDevice` is a
+    /// "read/write property whose value is a CFStringRef that contains the
+    /// unique identifier (UID) of the associated audio device". It does not say
+    /// that the queue retains the string, so the player keeps its own
+    /// reference alive for the whole life of the queue.
+    uid: Option<Owned>,
 }
 
 // SAFETY: the queue reference is only used to stop and dispose the queue, once,
-// from `drop`, and audio queues are thread-safe. `state` is only reached
-// through its mutex (by the callback) and freed in `drop`.
+// from `drop`, and audio queues are thread-safe. The ring is only reached
+// through its mutex. The UID string is only released in `drop`.
 unsafe impl Send for Player {}
 
 impl std::fmt::Debug for Player {
@@ -242,20 +365,19 @@ impl Player {
     /// is `None` or the device does not take it (gone, for instance).
     pub fn start_on(device: Option<String>, rate: u32, channels: u16) -> Result<Player> {
         let format = stream_description(rate, channels)?;
-        let (packets, receiver) = sync_channel(QUEUE);
-        let state = Box::into_raw(Box::new(Mutex::new(State {
-            packets: receiver,
-            jitter: Jitter::new(rate, channels),
-        })));
+        let ring = Arc::new(Mutex::new(Ring::new(rate, channels)));
+        // Take the lock once here, so that any first-use work of the mutex
+        // happens on this thread and not in the audio callback.
+        drop(ring.lock());
         let mut queue: AudioQueueRef = ptr::null_mut();
-        // SAFETY: `format` is valid for the call and copied; `state` stays valid
-        // until the queue is disposed. A NULL run loop means the callback runs
-        // on a thread of the queue.
+        // SAFETY: `format` is valid for the call and copied; the ring's
+        // allocation stays valid until the queue is disposed (see `Player`). A
+        // NULL run loop means the callback runs on a thread of the queue.
         let status = unsafe {
             AudioQueueNewOutput(
                 &raw const format,
                 Some(on_buffer),
-                state.cast(),
+                Arc::as_ptr(&ring).cast_mut().cast(),
                 ptr::null(),
                 ptr::null(),
                 0,
@@ -263,11 +385,9 @@ impl Player {
             )
         };
         if status != 0 || queue.is_null() {
-            // SAFETY: no queue exists, so no callback can run and `state` is unique.
-            drop(unsafe { Box::from_raw(state) });
             return Err(failure("the audio queue was not created", status));
         }
-        let player = Player { queue, state, packets };
+        let mut player = Player { queue, ring, uid: None };
         if let Some(uid) = device {
             player.choose(&uid);
         }
@@ -282,27 +402,36 @@ impl Player {
 
     /// Plays on the output with this UID. If that fails, the queue stays on
     /// the default output. The UID is never logged.
-    fn choose(&self, uid: &str) {
-        let Ok(uid) = CString::new(uid) else { return };
+    fn choose(&mut self, uid: &str) {
+        if !uid_is_usable(uid) {
+            note_fallback("the device id is not usable", 0);
+            return;
+        }
+        let Ok(uid) = CString::new(uid) else {
+            note_fallback("the device id is not usable", 0);
+            return;
+        };
         // SAFETY: `uid` is a valid NUL-terminated string for the call.
         let name = unsafe { CFStringCreateWithCString(ptr::null(), uid.as_ptr(), CF_STRING_ENCODING_UTF8) };
         if name.is_null() {
+            note_fallback("the device id could not be made into a string", 0);
             return;
         }
-        let name = Owned(name);
+        // The player owns the string until the queue is disposed.
+        let name = &self.uid.insert(Owned(name)).0;
         // SAFETY: the property takes a pointer to a `CFStringRef` and its size.
-        // The value is only read during the call; this function keeps the
-        // string and `Owned` releases it afterwards.
+        // The pointer is only read during the call; the string itself stays
+        // alive in `self.uid` as long as the queue exists.
         let status = unsafe {
             AudioQueueSetProperty(
                 self.queue,
                 PROPERTY_CURRENT_DEVICE,
-                (&raw const name.0).cast(),
+                ptr::from_ref(name).cast(),
                 size_of::<CFTypeRef>() as u32,
             )
         };
         if status != 0 {
-            tracing::warn!(status, "the chosen output was refused; playing on the default output");
+            note_fallback("the output was refused", status);
         }
     }
 
@@ -316,7 +445,7 @@ impl Player {
                 return Err(failure("an audio buffer was not allocated", status));
             }
             // SAFETY: `buffer` is valid and not yet enqueued, so only this thread uses it.
-            let status = unsafe { enqueue(self.queue, buffer, self.state, false) };
+            let status = unsafe { enqueue(self.queue, buffer, Arc::as_ptr(&self.ring), false) };
             if status != 0 {
                 return Err(failure("an audio buffer was not queued", status));
             }
@@ -324,12 +453,12 @@ impl Player {
         Ok(())
     }
 
-    /// Hands over a packet without waiting (dropped if the player is far
-    /// behind: it would be too late to hear anyway).
+    /// Hands over a packet. It is copied into the ring and the `Vec` is freed
+    /// here, never in the callback. When more than the budget would wait, the
+    /// oldest sound is dropped (it would be too late to hear anyway).
     pub fn push(&self, data: Vec<u8>) {
-        if let Err(TrySendError::Full(_)) = self.packets.try_send(data) {
-            tracing::debug!("a sound packet was dropped");
-        }
+        deliver(&self.ring, &data);
+        drop(data);
     }
 }
 
@@ -346,13 +475,16 @@ impl Drop for Owned {
 impl Drop for Player {
     fn drop(&mut self) {
         // SAFETY: both calls are synchronous, so no callback runs after the
-        // dispose returns. Only then is `state` freed, once. This runs on a
-        // thread that is not a callback of this queue.
+        // dispose returns. This runs on a thread that is not a callback of
+        // this queue. The ring and the UID string are freed after this
+        // function returns, so after the queue is gone.
         unsafe {
             AudioQueueStop(self.queue, 1);
             AudioQueueDispose(self.queue, 1);
-            drop(Box::from_raw(self.state));
         }
+        let ring = self.ring.lock().unwrap_or_else(PoisonError::into_inner);
+        // Counts only, never what was played.
+        tracing::debug!(stalls = ring.stalls, trims = ring.trims, "audio playback ended");
     }
 }
 
@@ -361,16 +493,16 @@ fn failure(what: &str, status: OSStatus) -> Error {
     Error::other(format!("{what} (OSStatus {status})"))
 }
 
-/// Fills `buffer` from `state` (silence if the state is busy, or when `fill`
-/// is false) and queues it.
+/// Fills `buffer` from `ring` (silence if the ring is busy, or when `fill`
+/// is false) and queues it. This does not allocate or free memory.
 ///
 /// # Safety
-/// `queue` and `buffer` are valid, and `state` is the pointer made in
+/// `queue` and `buffer` are valid, and `ring` points to the mutex made in
 /// `start_on`, not yet freed. No other thread uses `buffer`.
 unsafe fn enqueue(
     queue: AudioQueueRef,
     buffer: *mut QueueBuffer,
-    state: *mut Mutex<State>,
+    ring: *const Mutex<Ring>,
     fill: bool,
 ) -> OSStatus {
     // SAFETY: from the contract above; the queue's memory holds `capacity` bytes.
@@ -380,16 +512,8 @@ unsafe fn enqueue(
     };
     out.fill(0);
     if fill {
-        // A panic here must not cross the C frame; the buffer stays silent.
-        let _ = catch_unwind(AssertUnwindSafe(|| {
-            // SAFETY: `state` is valid until the queue is disposed.
-            let state = unsafe { &*state };
-            match state.try_lock() {
-                Ok(mut state) => state.render(out),
-                Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner().render(out),
-                Err(TryLockError::WouldBlock) => {}
-            }
-        }));
+        // SAFETY: `ring` is valid until the queue is disposed.
+        render(unsafe { &*ring }, out);
     }
     // SAFETY: `buffer` is valid and its size is set to the whole buffer.
     unsafe {
@@ -401,15 +525,14 @@ unsafe fn enqueue(
 /// The queue is done with `buffer`: fill it again and queue it. It fails
 /// harmlessly while the queue stops.
 unsafe extern "C" fn on_buffer(user: *mut c_void, queue: AudioQueueRef, buffer: *mut QueueBuffer) {
-    // SAFETY: `user` is the state from `start_on`; it is freed only after the
+    // SAFETY: `user` is the ring from `start_on`; it is freed only after the
     // queue is disposed, and no callback runs after that.
-    unsafe { enqueue(queue, buffer, user.cast(), true) };
+    unsafe { enqueue(queue, buffer, user.cast::<Mutex<Ring>>(), true) };
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc::sync_channel;
 
     #[test]
     fn the_stream_format_is_interleaved_s16_little_endian() {
@@ -424,11 +547,8 @@ mod tests {
     }
 
     #[test]
-    fn the_stream_format_matches_the_header_layout() {
-        assert_eq!(size_of::<StreamDescription>(), 40);
-        assert_eq!(std::mem::align_of::<StreamDescription>(), 8);
-        // `AudioQueueBuffer`: 3 pointers and 4 `UInt32`s, each `UInt32` padded to 8 bytes.
-        assert_eq!(size_of::<QueueBuffer>(), 56);
+    fn the_property_id_matches_the_header() {
+        // The struct layouts are checked at compile time (see the asserts above).
         assert_eq!(PROPERTY_CURRENT_DEVICE, 0x6171_6364);
     }
 
@@ -461,90 +581,256 @@ mod tests {
         }
     }
 
-    /// 1 kHz of frames numbered from `first`, mono, so a frame is 2 bytes.
+    #[test]
+    fn the_budget_is_whole_frames_and_never_more_than_the_most() {
+        assert_eq!(ms_bytes(48_000, 2, MOST_MS), 9_600 * 4);
+        assert_eq!(ms_bytes(1000, 1, MOST_MS), 400);
+        for rate in [8_000, 11_025, 22_050, 44_100, 48_000, 88_200, 96_000, 192_000, 12_345] {
+            for channels in 1..=8u16 {
+                let frame = 2 * usize::from(channels);
+                let cap = ms_bytes(rate, channels, MOST_MS);
+                assert_eq!(cap % frame, 0, "whole frames");
+                // cap / (bytes per second) <= MOST_MS / 1000, in integers.
+                assert!(cap * 1000 <= rate as usize * frame * MOST_MS, "{rate} {channels}");
+                let ring = Ring::new(rate, channels);
+                assert_eq!(ring.buf.len(), cap, "the ring is exactly the budget");
+                assert!(ring.keep <= cap && ring.keep >= frame);
+                assert_eq!(ring.start % frame, 0);
+                assert!(ring.start < ring.keep, "it starts before it would trim");
+            }
+        }
+    }
+
+    #[test]
+    fn the_trim_math_keeps_whole_frames_within_the_budget() {
+        // Mono 16-bit, 1 kHz: frame 2, cap 400 (200 ms), keep 120 (60 ms).
+        let (frame, cap, keep) = (2, 400, 120);
+        // Fits: nothing goes.
+        assert_eq!(trim_plan(0, 400, frame, cap, keep), (0, 0));
+        assert_eq!(trim_plan(300, 100, frame, cap, keep), (0, 0), "an exact fit");
+        // One byte over: the oldest go down to the keep amount.
+        assert_eq!(trim_plan(300, 101, frame, cap, keep), (282, 0));
+        // A packet bigger than the ring: all of the ring, then its own start.
+        assert_eq!(trim_plan(100, 600, frame, cap, keep), (100, 480));
+        assert_eq!(trim_plan(0, 600, frame, cap, keep), (0, 480));
+        // An odd tail (a split frame) still drops whole frames only.
+        let (from_ring, from_data) = trim_plan(301, 100, frame, cap, keep);
+        assert_eq!((from_ring + from_data) % frame, 0);
+        assert!(301 + 100 - from_ring - from_data <= keep);
+        // The result always fits, for every size, on 8 channels too.
+        for (frame, cap) in [(2usize, 400usize), (16, 6_400), (4, 800)] {
+            let keep = cap * 3 / 10 / frame * frame;
+            for ring in (0..=cap).step_by(frame / 2) {
+                for incoming in [0, 1, 3, 15, 160, cap, cap + 1, 5 * cap + 7] {
+                    let (a, b) = trim_plan(ring, incoming, frame, cap, keep);
+                    assert!(a <= ring && b <= incoming);
+                    assert_eq!((a + b) % frame, 0, "whole frames only");
+                    assert!(ring + incoming - a - b <= cap, "never over the budget");
+                    if ring + incoming <= cap {
+                        assert_eq!((a, b), (0, 0), "nothing is lost when it fits");
+                    }
+                }
+            }
+        }
+    }
+
+    /// Mono frames numbered from `first`, so a frame is 2 bytes.
     fn frames(first: u16, count: usize) -> Vec<u8> {
-        (0..count).flat_map(|i| (first + i as u16).to_le_bytes()).collect()
+        (0..count).flat_map(|i| (first.wrapping_add(i as u16)).to_le_bytes()).collect()
+    }
+
+    /// What is waiting in the ring, oldest first.
+    fn waiting(ring: &Ring) -> Vec<u8> {
+        let cap = ring.buf.len();
+        (0..ring.len).map(|i| ring.buf[(ring.head + i) % cap]).collect()
     }
 
     #[test]
     fn it_waits_for_some_sound_then_plays_it_in_order() {
         // Mono at 1 kHz: one frame is one millisecond.
-        let mut jitter = Jitter::new(1000, 1);
+        let mut ring = Ring::new(1000, 1);
         let mut out = [9u8; 20];
-        jitter.push(&frames(1, 10));
-        jitter.fill(&mut out);
+        ring.push(&frames(1, 10));
+        ring.fill(&mut out);
         assert_eq!(out, [0; 20], "10 ms is less than the start amount: silence");
-        jitter.push(&frames(11, 40));
+        ring.push(&frames(11, 40));
         let mut out = [0u8; 20];
-        jitter.fill(&mut out);
+        ring.fill(&mut out);
         assert_eq!(out.to_vec(), frames(1, 10), "50 ms in: it plays the oldest first");
-        jitter.fill(&mut out);
+        ring.fill(&mut out);
         assert_eq!(out.to_vec(), frames(11, 10));
+        assert_eq!((ring.stalls, ring.trims), (0, 0));
     }
 
     #[test]
     fn it_fills_with_silence_and_waits_again_when_the_sound_runs_out() {
-        let mut jitter = Jitter::new(1000, 1);
-        jitter.push(&frames(1, 45));
+        let mut ring = Ring::new(1000, 1);
+        ring.push(&frames(1, 45));
         let mut out = [0u8; 100];
-        jitter.fill(&mut out);
+        ring.fill(&mut out);
         assert_eq!(out[..90].to_vec(), frames(1, 45));
         assert_eq!(out[90..], [0; 10], "the rest is silence");
-        // It waits for the start amount again.
-        jitter.push(&frames(1, 10));
+        assert_eq!(ring.stalls, 1, "one run-out is one stall");
+        // It waits for the start amount again, and waiting is not counted again.
+        ring.push(&frames(1, 10));
         let mut out = [7u8; 20];
-        jitter.fill(&mut out);
+        ring.fill(&mut out);
         assert_eq!(out, [0; 20]);
+        ring.fill(&mut out);
+        assert_eq!(ring.stalls, 1);
+        // An empty ring that never started is silence, and is not a stall.
+        let mut fresh = Ring::new(1000, 1);
+        let mut out = [3u8; 8];
+        fresh.fill(&mut out);
+        assert_eq!((out, fresh.stalls), ([0; 8], 0));
+    }
+
+    #[test]
+    fn silence_fills_the_whole_output_whatever_was_in_it() {
+        let mut ring = Ring::new(1000, 2);
+        let mut out = [0xFFu8; 64];
+        ring.fill(&mut out);
+        assert!(out.iter().all(|b| *b == 0));
+        let mut empty: [u8; 0] = [];
+        ring.fill(&mut empty);
     }
 
     #[test]
     fn a_frame_split_across_packets_plays_in_the_right_order() {
         // Stereo at 1 kHz: a frame is 4 bytes (left, right).
-        let mut jitter = Jitter::new(1000, 2);
-        jitter.push(&[1, 0, 2, 0, 3]); // the third frame starts here
-        jitter.push(&[0, 4, 0, 5, 0, 6, 0]);
-        jitter.push(&[0u8; 4 * 40]);
+        let mut ring = Ring::new(1000, 2);
+        ring.push(&[1, 0, 2, 0, 3]); // the third frame starts here
+        ring.push(&[0, 4, 0, 5, 0, 6, 0]);
+        ring.push(&[0u8; 4 * 40]);
         let mut out = [0u8; 12];
-        jitter.fill(&mut out);
+        ring.fill(&mut out);
         assert_eq!(out, [1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0]);
         // An output that is not a multiple of a frame is not over-read either.
         let mut odd = [9u8; 6];
-        jitter.fill(&mut odd);
+        ring.fill(&mut odd);
         assert_eq!(odd, [0; 6], "the sound after it is silence, and only whole frames are copied");
-        let mut jitter = Jitter::new(1000, 2);
-        jitter.push(&[1, 0, 2, 0, 3, 0, 4, 0]);
-        jitter.push(&[0u8; 4 * 40]);
+        let mut ring = Ring::new(1000, 2);
+        ring.push(&[1, 0, 2, 0, 3, 0, 4, 0]);
+        ring.push(&[0u8; 4 * 40]);
         let mut odd = [9u8; 6];
-        jitter.fill(&mut odd);
+        ring.fill(&mut odd);
         assert_eq!(odd, [1, 0, 2, 0, 0, 0], "only the one whole frame fits");
     }
 
     #[test]
     fn it_drops_the_oldest_sound_when_it_piles_up() {
-        let mut jitter = Jitter::new(1000, 1);
+        let mut ring = Ring::new(1000, 1);
         // 300 ms at 1 kHz, mono: well over the most it keeps.
-        jitter.push(&frames(0, 300));
-        assert_eq!(jitter.bytes.len(), 2 * TRIM_TO_MS, "down to the trim amount");
-        let newest: Vec<u8> = jitter.bytes.iter().copied().collect();
-        assert_eq!(newest, frames(300 - TRIM_TO_MS as u16, TRIM_TO_MS), "the newest sound is kept");
+        ring.push(&frames(0, 300));
+        assert_eq!(ring.len, 2 * TRIM_TO_MS, "down to the trim amount");
+        assert_eq!(waiting(&ring), frames(300 - TRIM_TO_MS as u16, TRIM_TO_MS), "the newest sound is kept");
+        assert_eq!(ring.trims, 1);
+        // Sound that was already waiting goes first, and the new packet is whole.
+        let mut ring = Ring::new(1000, 1);
+        ring.push(&frames(0, 150));
+        assert_eq!(ring.trims, 0);
+        ring.push(&frames(150, 100));
+        assert_eq!(ring.trims, 1);
+        assert!(ring.len <= ring.buf.len());
+        let kept = waiting(&ring);
+        assert_eq!(kept, frames(250 - (kept.len() / 2) as u16, kept.len() / 2));
     }
 
     #[test]
-    fn the_callback_state_takes_what_arrived_and_fills_the_buffer() {
-        let (tx, rx) = sync_channel(QUEUE);
-        let mut state = State { packets: rx, jitter: Jitter::new(1000, 1) };
-        let mut out = [5u8; 10];
-        state.render(&mut out);
-        assert_eq!(out, [0; 10], "nothing yet: silence");
-        for first in [1u16, 21, 41] {
-            tx.send(frames(first, 20)).unwrap();
+    fn the_total_never_passes_the_budget_and_frames_stay_in_step() {
+        // Stereo at 1 kHz. A frame is [n, 0xAA, n, 0xBB], so a shifted read shows.
+        let mut ring = Ring::new(1000, 2);
+        let cap = ring.buf.len();
+        let stream: Vec<u8> = (0..4000usize).flat_map(|n| [n as u8, 0xAA, n as u8, 0xBB]).collect();
+        let mut at = 0;
+        for size in [7, 13, 1000, 3, 600, 1, 5, 2000, 81, 4, 999].into_iter().cycle().take(40) {
+            let end = (at + size).min(stream.len());
+            ring.push(&stream[at..end]);
+            at = if end == stream.len() { 0 } else { end };
+            assert!(ring.len <= cap, "never more than the budget");
+            let bytes = waiting(&ring);
+            for frame in bytes.as_chunks::<4>().0 {
+                assert_eq!((frame[1], frame[3], frame[0]), (0xAA, 0xBB, frame[2]), "channels in step");
+            }
         }
+        assert!(ring.trims > 0);
+        assert_eq!(ring.buf.len(), cap, "the ring never changes size");
+    }
+
+    #[test]
+    fn the_ring_keeps_the_order_when_it_wraps() {
+        let mut ring = Ring::new(1000, 1);
+        ring.push(&frames(0, 50));
+        let mut expect = 0u16;
+        let mut out = [0u8; 60];
+        ring.fill(&mut out);
+        assert_eq!(out.to_vec(), frames(0, 30));
+        expect += 30;
+        // 100 rounds of 30 frames in and out: the head goes round the 200-frame ring.
+        let mut next = 50u16;
+        for _ in 0..100 {
+            ring.push(&frames(next, 30));
+            next += 30;
+            ring.fill(&mut out);
+            assert_eq!(out.to_vec(), frames(expect, 30));
+            expect += 30;
+        }
+        assert_eq!((ring.stalls, ring.trims), (0, 0));
+        assert!(ring.head < ring.buf.len());
+    }
+
+    #[test]
+    fn the_callback_fills_the_buffer_and_never_waits_for_the_lock() {
+        let ring = Mutex::new(Ring::new(1000, 1));
+        let mut out = [5u8; 10];
+        render(&ring, &mut out);
+        assert_eq!(out, [0; 10], "nothing yet: silence");
+        deliver(&ring, &frames(1, 60));
         let mut out = [0u8; 10];
-        state.render(&mut out);
+        render(&ring, &mut out);
         assert_eq!(out.to_vec(), frames(1, 5));
-        // A full channel drops instead of blocking.
-        let (small_tx, _small_rx) = sync_channel::<Vec<u8>>(1);
-        small_tx.try_send(vec![1]).unwrap();
-        assert!(matches!(small_tx.try_send(vec![2]), Err(TrySendError::Full(_))));
+        // The producer holds the lock: the callback gives silence and does not block.
+        {
+            let _guard = ring.lock().unwrap();
+            let mut out = [7u8; 10];
+            render(&ring, &mut out);
+            assert_eq!(out, [0; 10]);
+        }
+        render(&ring, &mut out);
+        assert_eq!(out.to_vec(), frames(6, 5), "no sound was lost by the busy callback");
+    }
+
+    #[test]
+    fn a_poisoned_lock_still_plays() {
+        let ring = Arc::new(Mutex::new(Ring::new(1000, 1)));
+        deliver(&ring, &frames(1, 60));
+        let other = Arc::clone(&ring);
+        let _ = std::thread::spawn(move || {
+            let _guard = other.lock().unwrap();
+            panic!("poison the lock");
+        })
+        .join();
+        assert!(ring.is_poisoned());
+        let mut out = [0u8; 10];
+        render(&ring, &mut out);
+        assert_eq!(out.to_vec(), frames(1, 5));
+        deliver(&ring, &frames(61, 1));
+    }
+
+    #[test]
+    fn a_device_id_must_be_short_and_without_nul() {
+        assert!(uid_is_usable("BuiltInSpeakerDevice"));
+        assert!(uid_is_usable(&"a".repeat(MAX_UID_BYTES)));
+        assert!(!uid_is_usable(&"a".repeat(MAX_UID_BYTES + 1)));
+        assert!(!uid_is_usable(""));
+        assert!(!uid_is_usable("a\0b"));
+    }
+
+    #[test]
+    fn the_fallback_is_noted_only_once() {
+        let flag = AtomicBool::new(false);
+        assert!(first_time(&flag));
+        assert!(!first_time(&flag));
+        assert!(!first_time(&flag));
     }
 }
