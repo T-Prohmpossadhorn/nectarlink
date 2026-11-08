@@ -61,14 +61,21 @@ pub fn matching_rules<'a>(rules: &'a [AutomationRule], trigger: &str) -> Vec<&'a
     rules.iter().filter(|r| r.enabled && r.trigger == trigger).collect()
 }
 
+/// Pausing PC media is not possible on a Mac yet. An old or synced rule must
+/// fail, so that no "triggered" notice goes to the phone.
+fn pause_pc_media(on_mac: bool) -> Result<(), String> {
+    if on_mac {
+        return Err(tr!("Automations", "Pausing media is not available on this Mac"));
+    }
+    win::media_sessions::pause_for_call();
+    Ok(())
+}
+
 fn execute_rule(rule: &AutomationRule) {
     let res = match rule.action_kind.as_str() {
         ACTION_MUTE_PC => win::audio::set_speaker_mute(true),
         ACTION_UNMUTE_PC => win::audio::set_speaker_mute(false),
-        ACTION_PAUSE_PC_MEDIA => {
-            win::media_sessions::pause_for_call();
-            Ok(())
-        }
+        ACTION_PAUSE_PC_MEDIA => pause_pc_media(cfg!(target_os = "macos")),
         ACTION_LOCK_PC => win::shell::lock(),
         ACTION_RUN_COMMAND => win::shell::run_command(&rule.action_arg),
         ACTION_DECK_TILE => deck::execute_tile(&rule.action_arg),
@@ -130,6 +137,11 @@ pub fn on_event(event: &NodeEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pause_pc_media_fails_on_a_mac() {
+        assert!(pause_pc_media(true).is_err());
+    }
 
     #[test]
     fn matching_rules_filters_by_trigger_and_enabled_flag() {

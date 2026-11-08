@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Media between this PC and paired phones (docs/protocol/media.md): what
-//! plays on a phone shows in the app and in Windows' media flyout, where
-//! it can be controlled; what plays on this PC goes to the phones (see
+//! plays on a phone shows in the app and in the system media flyout (Windows
+//! only), where it can be controlled; what plays on this PC goes to the phones (see
 //! `win::media_sessions`).
 
 use crate::i18n::tr;
@@ -159,7 +159,7 @@ fn fnv(text: &str) -> u64 {
     text.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
-/// Keeps Windows' media flyout showing what plays on the phones.
+/// Keeps the system media flyout (Windows only) showing what plays on the phones.
 pub fn update_flyout() {
     let current = core_host::host().hub.read(|s| {
         // A player that's playing wins; then the first one shown.

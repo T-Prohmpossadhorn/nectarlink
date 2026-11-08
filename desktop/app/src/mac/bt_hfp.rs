@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Bluetooth call audio on macOS: not yet. Call audio stays on the phone, and
-//! the Calls page shows no "PC call audio" panel here.
+//! the Calls page shows no "PC call audio" panel here. This is out of scope
+//! for the Mac (see docs/PLAN.md, section 10.7).
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HfpStatus {

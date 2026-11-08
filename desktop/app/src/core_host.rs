@@ -389,7 +389,8 @@ async fn run(data_dir: PathBuf, platform: Arc<dyn Platform>) {
     }
 }
 
-/// Where files from phones go: `Downloads\Nectarlink`.
+/// Where files from phones go: the `Nectarlink` folder inside the user's Downloads
+/// folder (`Downloads\Nectarlink` on Windows, `~/Downloads/Nectarlink` on macOS).
 pub fn downloads_dir() -> PathBuf {
     dirs::download_dir().unwrap_or_else(|| host().data_dir.join("received")).join("Nectarlink")
 }

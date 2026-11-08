@@ -6,9 +6,28 @@ use std::{
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
+/// `"{prefix} YYYY-MM-DD HH.MM.SS.{ext}"` in local time, the same shape as on Windows.
 pub fn local_timestamp_filename(prefix: &str, ext: &str) -> String {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-    format!("{prefix} {now}.{ext}")
+    let secs = libc::time_t::try_from(now).unwrap_or(0);
+    // SAFETY: `tm` is plain data that `localtime_r` fills in; it takes no other state.
+    #[allow(unsafe_code)]
+    let tm = unsafe {
+        let mut tm: libc::tm = std::mem::zeroed();
+        if libc::localtime_r(&secs, &mut tm).is_null() {
+            return format!("{prefix} {now}.{ext}");
+        }
+        tm
+    };
+    format!(
+        "{prefix} {:04}-{:02}-{:02} {:02}.{:02}.{:02}.{ext}",
+        i64::from(tm.tm_year) + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec
+    )
 }
 
 pub struct MirrorRecorder {
@@ -63,8 +82,50 @@ impl MirrorRecorder {
     }
 }
 
+/// The NAL units of an Annex-B stream, as (type, payload) pairs.
+fn annex_b_nals(data: &[u8]) -> Vec<(u8, &[u8])> {
+    // (offset of the start code, offset of the payload) for every start code.
+    let mut starts: Vec<(usize, usize)> = Vec::new();
+    let mut i = 0;
+    while i + 3 <= data.len() {
+        if data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1 {
+            let begin = if i > 0 && data[i - 1] == 0 { i - 1 } else { i };
+            starts.push((begin, i + 3));
+            i += 3;
+        } else {
+            i += 1;
+        }
+    }
+    let mut out = Vec::new();
+    for (idx, &(_, payload_start)) in starts.iter().enumerate() {
+        let end = starts.get(idx + 1).map_or(data.len(), |&(next, _)| next);
+        if payload_start < end {
+            let payload = &data[payload_start..end];
+            out.push((payload[0] & 0x1F, payload));
+        }
+    }
+    out
+}
+
+/// Keeps the newest SPS (NAL 7) and PPS (NAL 8) from `data` in `sps_pps`, each
+/// with a 4-byte `00 00 00 01` start code. At most one of each is kept, so the
+/// buffer stays small however many keyframes arrive.
 pub fn merge_sps_pps(sps_pps: &mut Vec<u8>, data: &[u8]) {
-    sps_pps.extend_from_slice(data);
+    let new = annex_b_nals(data);
+    if !new.iter().any(|&(t, _)| t == 7 || t == 8) {
+        return;
+    }
+    let find = |nals: &[(u8, &[u8])], kind: u8| {
+        nals.iter().rev().find(|&&(t, _)| t == kind).map(|&(_, p)| p.to_vec())
+    };
+    let old = annex_b_nals(sps_pps);
+    let sps = find(&new, 7).or_else(|| find(&old, 7));
+    let pps = find(&new, 8).or_else(|| find(&old, 8));
+    sps_pps.clear();
+    for payload in [sps, pps].into_iter().flatten() {
+        sps_pps.extend_from_slice(&[0, 0, 0, 1]);
+        sps_pps.extend_from_slice(&payload);
+    }
 }
 
 #[cfg(test)]
@@ -84,5 +145,35 @@ mod tests {
         let name = local_timestamp_filename("Screen", "mp4");
         assert!(name.starts_with("Screen "));
         assert!(name.ends_with(".mp4"));
+    }
+
+    #[test]
+    fn local_timestamp_filename_has_the_windows_shape() {
+        let name = local_timestamp_filename("Mirror", "mp4");
+        let stamp = name.strip_prefix("Mirror ").and_then(|r| r.strip_suffix(".mp4")).unwrap();
+        // YYYY-MM-DD HH.MM.SS
+        let shape: String = stamp.chars().map(|c| if c.is_ascii_digit() { '9' } else { c }).collect();
+        assert_eq!(shape, "9999-99-99 99.99.99");
+    }
+
+    #[test]
+    fn merge_sps_pps_stays_bounded() {
+        let keyframe: Vec<u8> = [
+            &[0, 0, 0, 1, 0x67, 1, 2, 3][..],
+            &[0, 0, 0, 1, 0x68, 4, 5][..],
+            &[0, 0, 0, 1, 0x65, 9, 9, 9, 9][..],
+        ]
+        .concat();
+        let mut held = Vec::new();
+        merge_sps_pps(&mut held, &keyframe);
+        let first = held.clone();
+        assert_eq!(first, [&[0, 0, 0, 1, 0x67, 1, 2, 3][..], &[0, 0, 0, 1, 0x68, 4, 5][..]].concat());
+        for _ in 0..1000 {
+            merge_sps_pps(&mut held, &keyframe);
+        }
+        assert_eq!(held, first);
+        // A frame with no parameter sets changes nothing.
+        merge_sps_pps(&mut held, &[0, 0, 0, 1, 0x41, 7, 7]);
+        assert_eq!(held, first);
     }
 }
