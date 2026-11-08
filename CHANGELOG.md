@@ -136,9 +136,8 @@ change things that need a step from you, and its notes say so.
   input.
 - **Open files with NectarLink on a Mac.** In Finder, choose Open With and then NectarLink
   for a file. You can also drop files on the NectarLink icon in the Dock. The app then sends
-  them to your phone. A `nectarlink://` link opens the same way and goes to the phone as a
-  link. The app never becomes the default app for any file type. This is not tested on a Mac
-  yet.
+  them to your phone. The app is set up so that it should not become the default app for
+  any file type. This is not tested on a Mac yet.
 
 ### Fixed
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Finder open events: files opened with NectarLink, files dropped on its Dock
-//! icon, and `nectarlink://` links. The system sends these to the running app
+//! Finder open events: files opened with NectarLink and files dropped on its
+//! Dock icon. A `nectarlink://` link also arrives here, but nothing handles
+//! that scheme yet, so it is ignored. The system sends these to the running app
 //! as Apple Events, never in `argv` (so `main.rs` positional paths only matter
 //! for a launch from a command line). `cpp/app_helpers.cpp` has a Qt event
 //! filter that keeps the URLs of each event; this thread takes them and hands
@@ -30,8 +31,9 @@ pub fn request_from_open_event(urls: &[String]) -> Option<Request> {
     Some(Request::Share { files: shared.files, url: shared.url, text: shared.text })
 }
 
-/// Handles open events from now on. Quit stays available and the app opens
-/// no window for an event itself: a share opens its picker only when it needs one.
+/// Handles open events from now on. Quit stays available. This code opens no
+/// window itself, but a share may bring the main window forward when it
+/// cannot pick one phone.
 pub fn start() {
     STOP.store(false, Ordering::Release);
     let spawned = std::thread::Builder::new().name("open-events".into()).spawn(|| {
@@ -87,15 +89,8 @@ mod tests {
     }
 
     #[test]
-    fn a_nectarlink_link_maps_to_a_request_without_the_app() {
-        assert_eq!(
-            request_from_open_event(&urls(&["nectarlink://share?text=hello"])),
-            Some(Request::Share {
-                files: Vec::new(),
-                url: Some("nectarlink://share?text=hello".into()),
-                text: None,
-            })
-        );
+    fn a_nectarlink_link_is_not_a_request() {
+        assert_eq!(request_from_open_event(&urls(&["nectarlink://share?text=hello"])), None);
     }
 
     #[test]
