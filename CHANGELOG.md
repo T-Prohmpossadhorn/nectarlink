@@ -18,7 +18,9 @@ change things that need a step from you, and its notes say so.
   starts NectarLink at login does not hide its window yet. The Command palette button, the
   Walkthrough and the Features guide name Command+K. The Deck shows Command+Tab and
   Shift+Command+5, picks an application with a .app file, and no longer offers Show desktop,
-  which a Mac cannot do yet. Linux and Windows keep their old words. The global shortcuts
+  which a Mac cannot do yet. A new Deck does not start with that tile. A Deck that you saved
+  earlier keeps it. Settings says File manager integration and File manager Send to. The
+  Features guide points to the menu bar for the Shelf. Linux and Windows keep their old words. The global shortcuts
   and the Ctrl and Win boxes in Settings are not changed yet. This is not tested on a Mac
   yet.
 - **A NectarLink item in the Mac menu bar.** A click on it should open a menu with the same
