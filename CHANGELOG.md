@@ -149,6 +149,10 @@ change things that need a step from you, and its notes say so.
   Mac has no Send to menu. A phone no longer lists the File Explorer integration permission,
   because the phone storage folder is not on a Mac. The first-run walkthrough and the
   command palette no longer offer it either.
+- **Start at login on a Mac now tells you when it fails.** NectarLink used to ignore errors
+  when it wrote the login item, and it could write a wrong one for a path with special
+  characters. It now uses the path of the running app, saves the file in one step, and
+  shows an error if it cannot save it.
 - The message "No paired phone is connected" now follows the app language.
 - **"Quiet while this PC is locked" now works on macOS.** The switch was there,
   but the app never found out whether the screen was locked, so pop-ups kept
