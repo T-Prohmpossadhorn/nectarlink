@@ -797,8 +797,10 @@ mod tests {
 
     #[test]
     fn parse_options_recognizes_share_flag() {
+        // A path in this system's own form: a drive letter means nothing on a Mac.
+        let photo = if cfg!(windows) { r"C:\photo.jpg" } else { "/Users/alice/photo.jpg" };
         let opts = parse_options_from(
-            ["--data-dir", r"C:\Temp\nectarlink-test", "--share", r"C:\photo.jpg", "https://example.com"]
+            ["--data-dir", r"C:\Temp\nectarlink-test", "--share", photo, "https://example.com"]
                 .into_iter()
                 .map(OsString::from),
         );
@@ -807,7 +809,7 @@ mod tests {
         assert_eq!(
             opts.share,
             Some(win::share_target::SharedPayload {
-                files: vec![PathBuf::from(r"C:\photo.jpg")],
+                files: vec![PathBuf::from(photo)],
                 url: Some("https://example.com".into()),
                 text: None,
             })

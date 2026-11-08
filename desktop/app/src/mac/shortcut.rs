@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! macOS desktop shortcut and send-to stubs.
+//! macOS has no Send to folder and no shortcut files, so `send_to_dir` and
+//! `recent_dir` stay `None` and nothing calls `write`. The text format here
+//! (target, arguments, description, one per line) is private to this module:
+//! it is not a Finder alias or anything else the system understands. The Mac
+//! Send to is the Services menu.
 
 use std::path::{Path, PathBuf};
 
@@ -10,10 +14,12 @@ pub struct Shortcut {
     pub description: String,
 }
 
+/// There is no Send to folder on a Mac.
 pub fn send_to_dir() -> Option<PathBuf> {
     None
 }
 
+/// The recent items list of a Mac has a private format, so there is no folder to read.
 pub fn recent_dir() -> Option<PathBuf> {
     None
 }

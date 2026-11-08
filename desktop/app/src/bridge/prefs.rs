@@ -72,6 +72,8 @@ pub mod qobject {
         #[qproperty(bool, hold_when_locked)]
         /// Paired phones in Explorer's "Send to" menu.
         #[qproperty(bool, send_to_menu)]
+        /// Whether this system has a "Send to" menu to put phones in: Settings shows the switch only when it does.
+        #[qproperty(bool, send_to_available, cxx_name = "sendToAvailable")]
         /// Start when the user signs in.
         #[qproperty(bool, start_with_windows)]
         /// Check for updates on their own.
@@ -338,6 +340,7 @@ pub struct PreferencesRust {
     quiet_when_locked: bool,
     hold_when_locked: bool,
     send_to_menu: bool,
+    send_to_available: bool,
     start_with_windows: bool,
     auto_update: bool,
     install_updates: bool,
@@ -436,6 +439,7 @@ impl cxx_qt::Initialize for qobject::Preferences {
         self.as_mut().set_hold_when_locked(settings.hold_when_locked);
         crate::notifications::set_hold_when_locked(settings.hold_when_locked);
         self.as_mut().set_send_to_menu(settings.send_to_menu);
+        self.as_mut().set_send_to_available(crate::send_to::available());
         self.as_mut().set_auto_update(settings.auto_update);
         self.as_mut().set_install_updates(settings.install_updates);
         // Shown as the channel in use, whether picked or the build's own.

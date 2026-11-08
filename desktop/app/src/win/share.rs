@@ -26,6 +26,12 @@ thread_local! {
     static LAST: RefCell<Option<(DataTransferManager, i64)>> = const { RefCell::new(None) };
 }
 
+/// Whether [`show`] can open a share sheet. The Photos page shows its Share
+/// button only when it can.
+pub fn can_share() -> bool {
+    true
+}
+
 /// Shows the sheet for `paths`, which have to stay on disk until the app that's
 /// picked in it has read them.
 pub fn show(paths: &[PathBuf]) -> Result<(), String> {

@@ -899,14 +899,14 @@ fn dispatch_jump_task(qt: &CxxQtThread<qobject::AppController>, action: String) 
             if let Some(device) = selected_device(object.current_device) {
                 crate::clipboard::send_now(device);
             } else {
-                object.toast(QString::from("No paired phone is connected."));
+                object.toast(QString::from(&tr!("App", "No paired phone is connected.")));
             }
         }
         "find-phone" => {
             if let Some(device) = selected_device(object.current_device) {
                 ring_device(device, true);
             } else {
-                object.toast(QString::from("No paired phone is connected."));
+                object.toast(QString::from(&tr!("App", "No paired phone is connected.")));
             }
         }
         "take-photo" => {
