@@ -214,10 +214,14 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
 
     // The network itself.
     if !facts.local_address {
+        #[cfg(not(target_os = "macos"))]
+        let title = tr!("Doctor", "This PC isn't on a network");
+        #[cfg(target_os = "macos")]
+        let title = tr!("Doctor", "This Mac isn't on a network");
         checks.push(check(
             "network",
             Outcome::Fail,
-            tr!("Doctor", "This PC isn't on a network"),
+            title,
             tr!("Doctor", "Connect it to the same Wi-Fi or wired network as your phone."),
             None,
         ));
@@ -324,14 +328,26 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
     }
 
     if facts.vpn {
-        checks.push(check(
-            "vpn",
-            Outcome::Warn,
+        // On a Mac the VPN is a guess from the tunnel interfaces, so the title says "may".
+        #[cfg(not(target_os = "macos"))]
+        let (title, detail) = (
             tr!("Doctor", "A VPN is on"),
-            tr!("Doctor", "VPNs often keep devices on your network from reaching this PC. If your phone can't connect, try \
-             turning it off."),
-            None,
-        ));
+            tr!(
+                "Doctor",
+                "VPNs often keep devices on your network from reaching this PC. If your phone can't connect, try \
+             turning it off."
+            ),
+        );
+        #[cfg(target_os = "macos")]
+        let (title, detail) = (
+            tr!("Doctor", "A VPN may be on"),
+            tr!(
+                "Doctor",
+                "VPNs often keep devices on your network from reaching this Mac. If your phone can't connect, try \
+             turning it off."
+            ),
+        );
+        checks.push(check("vpn", Outcome::Warn, title, detail, None));
     }
 
     #[cfg(target_os = "linux")]
@@ -713,7 +729,12 @@ mod tests {
         f.local_address = false;
         f.firewall = Some(windows_checks::Firewall { on: true, allowed: false, blocked: false });
         let checks = diagnose(&f, 0);
-        assert_eq!(checks[0].title, "This PC isn't on a network");
+        let expected = if cfg!(target_os = "macos") {
+            "This Mac isn't on a network"
+        } else {
+            "This PC isn't on a network"
+        };
+        assert_eq!(checks[0].title, expected);
         assert_eq!(checks[1].outcome, Outcome::Warn);
         assert_eq!(checks[1].fix, Some(expected_firewall_fix()));
     }
@@ -778,6 +799,13 @@ mod tests {
         let checks = diagnose(&f, 0);
         let fw = checks.iter().find(|c| c.id == "firewall").unwrap();
         assert_eq!(fw.title, "Windows Firewall is off for this network");
+    }
+
+    #[test]
+    fn an_unknown_firewall_gives_no_row() {
+        let mut f = facts();
+        f.firewall = None;
+        assert!(diagnose(&f, 0).iter().all(|c| c.id != "firewall"));
     }
 
     #[test]
