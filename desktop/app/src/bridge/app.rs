@@ -329,8 +329,8 @@ pub mod qobject {
         /// Opens the Connection Doctor and checks the connection.
         #[qinvokable]
         fn run_doctor(self: Pin<&mut AppController>);
-        /// Runs one of the Doctor's fixes ("firewall", "network-settings",
-        /// "reconnect"), then checks again.
+        /// Runs one of the Doctor's fixes ("firewall", "firewall-settings",
+        /// "network-settings", "reconnect"), then checks again.
         #[qinvokable]
         fn doctor_fix(self: Pin<&mut AppController>, fix: &QString);
 

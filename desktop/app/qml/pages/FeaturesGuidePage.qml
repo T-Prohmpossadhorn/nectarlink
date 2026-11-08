@@ -467,7 +467,7 @@ Item {
             toggleKey: "",
             pcLocal: true,
             localAlways: true,
-            summary: qsTr("Diagnose and fix Windows Firewall rules, network profile type, and local discovery issues."),
+            summary: qsTr("Diagnose and fix firewall rules, network settings, and local discovery issues."),
             whereLabel: qsTr("Settings › Connection & About › Connection Doctor"),
             needsLabel: qsTr("Always available on PC"),
             targetId: "doctor:open",

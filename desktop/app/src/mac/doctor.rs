@@ -45,6 +45,12 @@ pub fn open_firewall_settings() -> bool {
     true
 }
 
+/// Readiness checks for this platform: `(id, title, ok, detail, fix)`.
+/// None yet on macOS.
+pub fn platform_checks() -> Vec<(String, String, bool, String, Option<&'static str>)> {
+    Vec::new()
+}
+
 #[allow(dead_code)]
 pub fn diagnose() -> Vec<(String, bool, String)> {
     Vec::new()
